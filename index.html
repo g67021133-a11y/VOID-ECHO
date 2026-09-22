@@ -5,414 +5,329 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>VOID ECHO — RPG</title>
 <style>
-*{box-sizing:border-box} body{margin:0;background:#050509;color:#fff;font-family:monospace;overflow:hidden}
+*{box-sizing:border-box}
+body{margin:0;background:#050509;color:#fff;font-family:monospace;overflow:hidden}
 #game{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center}
-canvas{width:min(96vw,960px);height:auto;max-height:92vh;background:#08080d;border:2px solid #333;image-rendering:pixelated}
-#hint{position:fixed;bottom:8px;left:0;right:0;text-align:center;color:#aaa;font-size:13px}
+canvas{width:min(96vw,960px);height:auto;max-height:90vh;background:#08080d;border:2px solid #333;image-rendering:pixelated}
+#hint{position:fixed;bottom:5px;left:0;right:0;text-align:center;color:#aaa;font-size:12px}
 </style>
 </head>
 <body>
 <div id="game"><canvas id="c" width="800" height="500"></canvas></div>
-<div id="hint">WASD / стрелки — движение • Z/Enter — действие • X/Esc — назад • I — инвентарь • I — инвентарь • P — сохранить</div>
-<div id="overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);color:#fff;font:16px monospace;padding:30px;z-index:5">
-<h2 id="ovTitle">ИНВЕНТАРЬ</h2><div id="ovText"></div><button id="ovClose" style="margin-top:20px;padding:12px 25px">Закрыть</button>
-</div>
+<div id="hint">WASD / стрелки — движение • Z/Enter — действие • I — инвентарь • P — сохранить</div>
 <script>
-const c=document.getElementById('c'),ctx=c.getContext('2d');
+const c=document.getElementById("c"),ctx=c.getContext("2d");
 ctx.imageSmoothingEnabled=false;
-let state="title", room=0, genocide=false, boss=false, hp=24, maxhp=24;
-let ending=null, storyStage=0, inventory=["Старая фляга","Неизвестный ключ"], gold=0;
-let spared=0, defeated=0, storyFlags={archive:false,crystal:false,core:false};
-let ending="none";
-let inventory=[{name:"Лечебный кристалл",qty:2},{name:"Осколок эха",qty:0},{name:"Старый ключ",qty:0}];
-let saveslot="void_echo_save";\nlet inventory=["Малый хил"]; let invOpen=false; let endings=[];
-let player={x:110,y:390,r:10,s:3}, dialog=[], di=0, battle=null, kills=0;
-const items={
- "Старая фляга":{desc:"Восстанавливает 8 HP.",use:()=>{hp=Math.min(maxhp,hp+8);removeItem("Старая фляга");text("Ты выпил содержимое фляги. +8 HP.");}},
- "Неизвестный ключ":{desc:"Ключ с символом пустоты.",use:()=>text("Ключ холодный. Он явно открывает что-то важное.")},
- "Осколок кристалла":{desc:"Светящийся осколок. Можно продать за 20 монет.",use:()=>{gold+=20;removeItem("Осколок кристалла");text("Ты обменял осколок на 20 монет.");}},
- "Чернильная страница":{desc:"Фрагмент старого дневника.",use:()=>text("«Если сердце мира погаснет, Архитектор проснётся...»")}
-};
-function addItem(x){if(!inventory.includes(x))inventory.push(x)}
-function removeItem(x){inventory=inventory.filter(i=>i!==x)}
-function inventoryScreen(){
- state="inventory"; draw(); 
-}
+
+let state="title",room=0,hp=24,maxhp=24,kills=0,spared=0,gold=0;
+let genocide=false,ending="",bossStarted=false;
+let player={x:110,y:390,r:10,s:3};
+let dialog=[],di=0,battle=null;
+let inventory=["Малое лечение","Старая записка"];
+let flags={metGuide:false,crystal:false,archive:false};
+const saveKey="void_echo_save_v3";
+
 const rooms=[
- {name:"Пепельный двор", bg:"#15131c", desc:"Холодный двор среди огромных каменных арок."},
- {name:"Стеклянные пещеры", bg:"#101b25", desc:"Кристаллы мерцают, а пол дрожит под ногами."},
- {name:"Заброшенный архив", bg:"#1b1712", desc:"Полки уходят во тьму. Здесь слишком тихо."},
- {name:"Черный коридор", bg:"#09090d", desc:"Свет исчезает. Где-то впереди слышен шаг."}
+ {name:"Пепельный двор",bg:"#15131c"},
+ {name:"Стеклянные пещеры",bg:"#101b25"},
+ {name:"Заброшенный архив",bg:"#1b1712"},
+ {name:"Чёрный коридор",bg:"#09090d"}
 ];
 const enemies=[
- {name:"Морок",hp:18,max:18,atk:3,desc:"Тень, которая притворяется дверью."},
- {name:"Кристалл-рыцарь",hp:26,max:26,atk:4,desc:"Живой осколок древнего механизма."},
- {name:"Архивный жук",hp:32,max:32,atk:5,desc:"Существо, пожирающее забытые страницы."}
+ {name:"Морок",hp:18,max:18,desc:"Тень, которая притворяется дверью."},
+ {name:"Кристалл-рыцарь",hp:26,max:26,desc:"Живой осколок древнего механизма."},
+ {name:"Архивный жук",hp:32,max:32,desc:"Существо, пожирающее забытые страницы."}
 ];
+
+function say(t){dialog=[t];di=0;state="dialog"}
+function next(){if(di<dialog.length-1)di++;else{dialog=[];state="world"}}
+function wrap(t,x,y,w,lh=22){
+ let words=t.split(" "),line="",yy=y;
+ for(const word of words){
+  const test=line?line+" "+word:word;
+  if(ctx.measureText(test).width>w){ctx.fillText(line,x,yy);line=word;yy+=lh}
+  else line=test;
+ }
+ if(line)ctx.fillText(line,x,yy);
+}
+function addItem(x){if(!inventory.includes(x))inventory.push(x)}
+function removeItem(x){const i=inventory.indexOf(x);if(i>=0)inventory.splice(i,1)}
+
 function saveGame(){
-  localStorage.setItem(saveKey, JSON.stringify({
-    room,genocide,hp,maxhp,player,kills,spared,inventory,ending,
-    met1:!!window.__met1,met2:!!window.__met2,boss:!!window.__boss
-  }));
+ localStorage.setItem(saveKey,JSON.stringify({
+  room,hp,maxhp,kills,spared,gold,genocide,ending,player,inventory,flags
+ }));
+ say("Игра сохранена.");
 }
 function loadGame(){
-  const s=localStorage.getItem(saveKey);
-  if(!s)return false;
-  try{
-    const d=JSON.parse(s);
-    room=d.room??0; genocide=!!d.genocide; hp=d.hp??24; maxhp=d.maxhp??24;
-    player=d.player||player; kills=d.kills??0; spared=d.spared??0;
-    inventory=d.inventory||["Малое лечение"]; ending=d.ending||"";
-    window.__met1=!!d.met1; window.__met2=!!d.met2; window.__boss=!!d.boss;
-    state="world"; return true;
-  }catch(e){return false}
-}
-function useItem(){
-  const i=inventory.indexOf("Малое лечение");
-  if(i<0){text("В инвентаре нет предметов лечения.");return}
-  if(hp>=maxhp){text("HP уже полностью восстановлены.");return}
-  inventory.splice(i,1); hp=Math.min(maxhp,hp+10); saveGame();
-  text("Ты использовал Малое лечение. +10 HP");
-}
-function inventoryDraw(){
-  ctx.fillStyle="rgba(0,0,0,.96)";ctx.fillRect(90,70,620,360);
-  ctx.strokeStyle="#fff";ctx.strokeRect(90,70,620,360);
-  ctx.fillStyle="#fff";ctx.font="24px monospace";ctx.fillText("ИНВЕНТАРЬ",120,110);
-  ctx.font="17px monospace";
-  if(!inventory.length) ctx.fillText("Пусто",120,155);
-  inventory.forEach((x,i)=>ctx.fillText((i+1)+". "+x,120,155+i*30));
-  ctx.font="13px monospace";ctx.fillStyle="#aaa";
-  ctx.fillText("I — закрыть • H — использовать лечение",120,395);
-}
-function text(t){dialog=[t];di=0;state="dialog"}
-function next(){
- if(di<dialog.length-1){di++;return}
- state="world";dialog=[];
-}
-function drawText(s,x,y,w,lh=22){let words=s.split(" "),line="",yy=y;for(const word of words){let test=line?line+" "+word:word;if(ctx.measureText(test).width>w){ctx.fillText(line,x,yy);line=word;yy+=lh}else line=test}if(line)ctx.fillText(line,x,yy)}
-function inventoryDraw(){
- ctx.fillStyle="rgba(0,0,0,.94)";ctx.fillRect(90,70,620,360);
- ctx.strokeStyle="#fff";ctx.strokeRect(90,70,620,360);
- ctx.fillStyle="#fff";ctx.font="26px monospace";ctx.fillText("ИНВЕНТАРЬ",120,110);
- ctx.font="16px monospace";
- if(inventory.length===0){ctx.fillStyle="#888";ctx.fillText("Пусто",120,155);}
- inventory.forEach((item,i)=>{ctx.fillStyle=i===0?"#fff":"#aaa";ctx.fillText((i===0?"> ":"  ")+item,125,155+i*32);});
- ctx.fillStyle="#888";ctx.font="13px monospace";ctx.fillText("I — закрыть • Z — использовать выбранный предмет",120,395);
-}
-function world(){
- const r=rooms[room];ctx.fillStyle=r.bg;ctx.fillRect(0,0,800,500);
- // simple original scenery
- ctx.fillStyle="#262633"; for(let i=0;i<10;i++){ctx.fillRect(i*90,70+(i%2)*15,55,180)}
- ctx.fillStyle="#3a3a4b";ctx.fillRect(0,420,800,80);
- ctx.fillStyle="#171722";ctx.fillRect(35,55,730,365);
- ctx.strokeStyle="#4c4c5f";ctx.strokeRect(35,55,730,365);
- if(room<3){ctx.fillStyle="#666";ctx.fillRect(735,205,30,80)}
- ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,Math.PI*2);ctx.fill();
- ctx.fillStyle="#fff";ctx.font="18px monospace";ctx.fillText(r.name,55,35);
- ctx.font="14px monospace";ctx.fillStyle="#bbb";ctx.fillText("HP "+hp+"/"+maxhp+"   Убийств: "+kills+"   I — инвентарь",55,475);
- if(genocide) {ctx.fillStyle="#b44";ctx.fillText("МАРШРУТ: ГЕНОЦИД",570,35)}
-}
-function saveGame(){
- const data={state:"world",room,genocide,hp,maxhp,inventory,kills,ending,player:{x:player.x,y:player.y},met1:!!window.__met1,met2:!!window.__met2,boss:!!window.__boss};
- localStorage.setItem(saveslot,JSON.stringify(data));
- showOverlay("ИГРА СОХРАНЕНА","Прогресс сохранён в этом браузере.");
-}
-function loadGame(){
- const raw=localStorage.getItem(saveslot);
- if(!raw){showOverlay("СОХРАНЕНИЕ","Сохранения пока нет.");return false}
+ const raw=localStorage.getItem(saveKey);
+ if(!raw){say("Сохранения пока нет.");return}
  try{
-  const d=JSON.parse(raw); room=d.room||0;genocide=!!d.genocide;hp=d.hp||maxhp;inventory=d.inventory||inventory;kills=d.kills||0;ending=d.ending||"none";
-  player.x=d.player?.x||110;player.y=d.player?.y||390;window.__met1=!!d.met1;window.__met2=!!d.met2;window.__boss=!!d.boss;state="world";dialog=[];
-  showOverlay("ЗАГРУЖЕНО","Продолжаем с последнего сохранения.");return true;
- }catch(e){showOverlay("СОХРАНЕНИЕ","Файл сохранения повреждён.");return false}
+  const d=JSON.parse(raw);
+  room=d.room??0;hp=d.hp??24;maxhp=d.maxhp??24;kills=d.kills??0;
+  spared=d.spared??0;gold=d.gold??0;genocide=!!d.genocide;
+  ending=d.ending||"";player=d.player||player;inventory=d.inventory||inventory;
+  flags=d.flags||flags;state="world";
+ }catch(e){say("Сохранение повреждено.")}
 }
-function showOverlay(title,body){
- document.getElementById("ovTitle").textContent=title;
- document.getElementById("ovText").innerHTML=body;
- document.getElementById("overlay").style.display="block";
-}
-function inventoryView(){
- let s=inventory.map(i=>`<p>• ${i.name}: ${i.qty}</p>`).join("");
- s+=`<p>Маршрут: ${genocide?"ГЕНОЦИД":"МИРНЫЙ / ОБЫЧНЫЙ"}</p><p>Убийств: ${kills}</p><p>Концовка: ${ending}</p>`;
- showOverlay("ИНВЕНТАРЬ",s);
-}
+
 function title(){
  ctx.fillStyle="#050509";ctx.fillRect(0,0,800,500);
- ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="bold 42px monospace";ctx.fillText("VOID ECHO",400,170);
+ ctx.textAlign="center";ctx.fillStyle="#fff";
+ ctx.font="bold 44px monospace";ctx.fillText("VOID ECHO",400,170);
  ctx.font="18px monospace";ctx.fillStyle="#aaa";ctx.fillText("оригинальная пиксельная RPG",400,205);
  ctx.fillStyle="#fff";ctx.fillText("Z / ENTER — начать",400,280);
- ctx.fillStyle="#aaa";ctx.font="15px monospace";ctx.fillText("L — загрузить сохранение",400,310);
- ctx.fillStyle="#666";ctx.font="13px monospace";ctx.fillText("Две линии прохождения • секретный финал",400,325);
+ ctx.fillStyle="#888";ctx.font="14px monospace";ctx.fillText("L — загрузить сохранение",400,310);
  ctx.textAlign="left";
 }
+function world(){
+ const r=rooms[room];
+ ctx.fillStyle=r.bg;ctx.fillRect(0,0,800,500);
+ ctx.fillStyle="#222231";
+ for(let i=0;i<10;i++)ctx.fillRect(i*90,70+(i%2)*15,55,180);
+ ctx.fillStyle="#343445";ctx.fillRect(0,420,800,80);
+ ctx.fillStyle="#11111a";ctx.fillRect(35,55,730,365);
+ ctx.strokeStyle="#55556b";ctx.strokeRect(35,55,730,365);
+ if(room<3){ctx.fillStyle="#777";ctx.fillRect(735,205,30,80)}
+ ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,Math.PI*2);ctx.fill();
+ ctx.font="18px monospace";ctx.fillText(r.name,55,35);
+ ctx.font="14px monospace";ctx.fillStyle="#bbb";
+ ctx.fillText("HP "+hp+"/"+maxhp+"   Убийств: "+kills+"   Монет: "+gold,55,475);
+ if(genocide){ctx.fillStyle="#d66";ctx.fillText("МАРШРУТ: ГЕНОЦИД",575,35)}
+}
 function dialogDraw(){
- world();ctx.fillStyle="rgba(0,0,0,.88)";ctx.fillRect(45,330,710,125);ctx.strokeStyle="#fff";ctx.strokeRect(45,330,710,125);
- ctx.fillStyle="#fff";ctx.font="18px monospace";drawText(dialog[di],70,365,660,24);
+ world();
+ ctx.fillStyle="rgba(0,0,0,.9)";ctx.fillRect(45,330,710,125);
+ ctx.strokeStyle="#fff";ctx.strokeRect(45,330,710,125);
+ ctx.fillStyle="#fff";ctx.font="18px monospace";wrap(dialog[di],70,365,660);
  ctx.font="13px monospace";ctx.fillStyle="#aaa";ctx.fillText("Z / ENTER — продолжить",560,435);
+}
+function inventoryDraw(){
+ ctx.fillStyle="#050509";ctx.fillRect(0,0,800,500);
+ ctx.fillStyle="#fff";ctx.font="28px monospace";ctx.fillText("ИНВЕНТАРЬ",55,60);
+ ctx.font="16px monospace";
+ inventory.forEach((it,i)=>{
+  ctx.fillStyle=i===0?"#fff":"#aaa";
+  ctx.fillText((i===0?"> ":"  ")+it,70,120+i*38);
+ });
+ ctx.fillStyle="#aaa";ctx.font="13px monospace";
+ ctx.fillText("Z — использовать первый предмет • I/X/Esc — выйти",55,430);
+ ctx.fillText("Монеты: "+gold,600,60);
 }
 function battleDraw(){
  ctx.fillStyle="#050509";ctx.fillRect(0,0,800,500);
  ctx.fillStyle="#fff";ctx.font="26px monospace";ctx.fillText(battle.enemy.name,70,55);
  ctx.font="15px monospace";ctx.fillStyle="#bbb";ctx.fillText(battle.enemy.desc,70,82);
  ctx.strokeStyle="#fff";ctx.strokeRect(210,130,380,250);
- // soul
  ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(battle.soul.x,battle.soul.y,7,0,Math.PI*2);ctx.fill();
- // bullets
- for(const b of battle.bullets){ctx.fillStyle=b.c||"#fff";ctx.fillRect(b.x,b.y,b.w,b.h)}
- ctx.fillStyle="#fff";ctx.font="16px monospace";ctx.fillText("HP "+hp+"/"+maxhp,70,430);
+ for(const b of battle.bullets){ctx.fillRect(b.x,b.y,b.w,b.h)}
+ ctx.font="16px monospace";ctx.fillText("HP "+hp+"/"+maxhp,70,430);
  ctx.fillText("Z — атака   X — пощада   H — лечение",395,430);
-}
-function startBattle(e,final=false){
- battle={enemy:{...e},final,phase:"menu",soul:{x:400,y:255},bullets:[],timer:0,turn:0};
- state="battle";
-}
-function useItem(){
- if(inventory.length===0)return;
- if(inventory[0]==="Малый хил"){hp=Math.min(maxhp,hp+8);inventory.shift();text("Ты восстановил 8 HP.");}
- else if(inventory[0]==="Кристалл"){inventory.shift();hp=Math.min(maxhp,hp+15);text("Кристалл восстановил 15 HP.");}
-}
-function attack(){
- if(!battle)return;
- let dmg=final?12:8;
- battle.enemy.hp-=dmg;
- if(battle.enemy.hp<=0){ 
-   if(battle.final){ ending="ГЛАВНАЯ"; state="victory"; saveGame(); return; }
-   kills++; genocide=true; inventory[1].qty++; text("Ты победил. Мир стал тише. Осколок эха добавлен в инвентарь."); return;
- }
- enemyTurn();
-}
-function spare(){
- if(battle.final){text("Существо не принимает пощаду.");return}
- battle=null; state="world";
- if(room>=2){ending="МИРНАЯ"; inventory[2].qty=1; saveGame(); text("Ты сохранил жизнь врагам. Ключ найден. Это ведёт к мирной концовке.");}
- else text("Ты отступил от боя. Можно продолжить путь.");
-}
-function enemyTurn(){
- battle.phase="dodge";battle.timer=0;battle.bullets=[];
- for(let i=0;i<7;i++) battle.bullets.push({x:220+i*48,y:145,w:8,h:8,dx:(i%2?1:-1)*(1.2+i*.08),dy:1.2+(i%3)*.4,c:"#fff"});
-}
-function updateBattle(){
- if(!battle||battle.phase!=="dodge")return;
- battle.timer++;
- for(const b of battle.bullets){b.x+=b.dx;b.y+=b.dy;if(b.x<215||b.x>580)b.dx*=-1;if(b.y>370)b.y=140}
- const s=battle.soul;
- for(const b of battle.bullets) if(Math.abs(b.x-s.x)<12&&Math.abs(b.y-s.y)<12){hp--;b.x=-100;if(hp<=0){state="gameover";return}}
- if(battle.timer>150){battle.phase="menu";battle.bullets=[]}
-}
-function corridorSequence(){
- state="cutscene";let t=0;
- const iv=setInterval(()=>{
-   t++;
-   ctx.fillStyle="#000";ctx.fillRect(0,0,800,500);
-   ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="24px monospace";
-   if(t<50)ctx.fillText("КОРИДОР",400,220);
-   else if(t<100)ctx.fillText("Кто-то уже ждал тебя.",400,220);
-   else if(t<160){ctx.fillStyle="#9ff";ctx.fillRect(80,220,640,18);ctx.fillStyle="#fff";ctx.fillText("СИНИЙ ЛАЗЕР",400,190)}
-   else {clearInterval(iv);startBattle({name:"АРХИТЕКТ ПУСТОТЫ",hp:70,max:70,atk:8,desc:"Главный босс. Настоящий бой начинается сейчас."},true)}
-   ctx.textAlign="left";
- },45);
-}
-
-// ===== INVENTORY + STORY + MULTIPLE ENDINGS =====
-let inventory=["Старая записка"];
-let storyFlags={metArchivist:false, helpedCrystal:false, sparedShadow:false, killedBoss:false};
-let ending=null;
-let invOpen=false;
-const items={
- "Старая записка":"На ней написано: «Не бойся пустоты. Она боится тебя».",
- "Кристальный осколок":"Тёплый осколок, оставшийся после встречи с рыцарем.",
- "Черный ключ":"Ключ от двери в самом конце архива.",
- "Эхо-сердце":"Странное сердце, которое хранит воспоминания.",
- "Печать Пустоты":"Символ главного босса."
-};
-function hasItem(n){return inventory.includes(n)}
-function giveItem(n){if(!hasItem(n))inventory.push(n)}
-function showInventory(){
- invOpen=true; state="inventory";
-}
-function inventoryDraw(){
- world();
- ctx.fillStyle="rgba(0,0,0,.94)";ctx.fillRect(80,55,640,390);
- ctx.strokeStyle="#fff";ctx.strokeRect(80,55,640,390);
- ctx.fillStyle="#fff";ctx.font="24px monospace";ctx.fillText("ИНВЕНТАРЬ",110,95);
- ctx.font="16px monospace";
- inventory.forEach((it,i)=>{
-   ctx.fillStyle=i===0?"#fff":"#bbb";
-   ctx.fillText((i+1)+". "+it,115,135+i*30);
- });
- ctx.fillStyle="#888";ctx.font="13px monospace";
- ctx.fillText("Z / Enter — закрыть",520,420);
-}
-function storyEvent(){
- if(room===0 && player.x>250 && player.x<430 && player.y>180 && player.y<300 && !storyFlags.metArchivist){
-   storyFlags.metArchivist=true;
-   dialog=[
-    "Незнакомец: Ты не должен был сюда попасть.",
-    "Незнакомец: Этот мир держится на четырёх Эхо.",
-    "Незнакомец: Если соберёшь их, Пустота проснётся.",
-    "Незнакомец: Решать тебе — спасти этот мир или разрушить его.",
-    "Он исчезает, оставив после себя Кристальный осколок."
-   ];
-   giveItem("Кристальный осколок"); di=0; state="dialog";
- }
- if(room===1 && player.x>500 && player.y<180 && !storyFlags.helpedCrystal){
-   storyFlags.helpedCrystal=true;
-   dialog=[
-    "Из стены доносится голос: «Я заперт уже тысячу лет».",
-    "Ты находишь странный механизм.",
-    "Кристальный осколок подходит к механизму.",
-    "Дверь открывается. Внутри лежит Чёрный ключ."
-   ];
-   giveItem("Черный ключ"); di=0; state="dialog";
- }
- if(room===2 && player.x<260 && player.y<170 && !storyFlags.metArchivist){
-   text("На старой стене выцарапано: «Архитектор создал Пустоту, чтобы сохранить мир. Но Пустота решила, что миру не нужны люди».");
- }
-}
-function chooseEnding(){
- if(genocide && storyFlags.killedBoss) ending="ПУСТОТА";
- else if(genocide) ending="РАЗРУШЕНИЕ";
- else if(hasItem("Эхо-сердце") && storyFlags.sparedShadow) ending="ИСТИННОЕ ЭХО";
- else ending="ВОЗВРАЩЕНИЕ";
- state="ending";
-}
-function endingDraw(){
- ctx.fillStyle="#030305";ctx.fillRect(0,0,800,500);
- ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="32px monospace";
- const names={
-  "ВОЗВРАЩЕНИЕ":"КОНЦОВКА: ВОЗВРАЩЕНИЕ",
-  "ИСТИННОЕ ЭХО":"КОНЦОВКА: ИСТИННОЕ ЭХО",
-  "РАЗРУШЕНИЕ":"КОНЦОВКА: РАЗРУШЕНИЕ",
-  "ПУСТОТА":"КОНЦОВКА: ПУСТОТА"
- };
- ctx.fillText(names[ending],400,150);
- ctx.font="16px monospace";ctx.fillStyle="#bbb";
- const desc={
-  "ВОЗВРАЩЕНИЕ":"Ты остановился до последнего шага и нашёл путь домой.",
-  "ИСТИННОЕ ЭХО":"Ты сохранил Эхо и доказал, что мир можно изменить без разрушения.",
-  "РАЗРУШЕНИЕ":"Пустота победила, потому что слишком много воспоминаний было уничтожено.",
-  "ПУСТОТА":"Ты победил Архитектора, но сам стал новым голосом Пустоты."
- };
- drawText(desc[ending],180,220,440,25);
- ctx.fillStyle="#fff";ctx.fillText("Z / ENTER — начать заново",400,350);
- ctx.textAlign="left";
-}
-
-
-function inventoryDraw(){
- ctx.fillStyle="#08080d";ctx.fillRect(0,0,800,500);
- ctx.fillStyle="#fff";ctx.font="28px monospace";ctx.fillText("ИНВЕНТАРЬ",55,60);
- ctx.font="15px monospace";ctx.fillStyle="#aaa";ctx.fillText("Z — использовать выбранный предмет • X — выйти",55,90);
- inventory.forEach((it,i)=>{
-   ctx.fillStyle=i===0?"#fff":"#aaa";ctx.fillText((i===0?"> ":"  ")+it,70,135+i*35);
-   ctx.font="12px monospace";ctx.fillText(items[it]?.desc||"",320,135+i*35);ctx.font="15px monospace";
- });
- ctx.fillStyle="#aaa";ctx.fillText("Монеты: "+gold,600,60);
 }
 function endingDraw(){
  ctx.fillStyle="#030306";ctx.fillRect(0,0,800,500);
  ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="30px monospace";
- if(ending==="genocide"){
-   ctx.fillText("КОНЦОВКА: ПУСТОТА",400,150);
-   ctx.font="17px monospace";drawText("Ты уничтожил тех, кто стоял на твоём пути. Архитектор признал твою силу — но мир больше не отвечает.",170,210,460,26);
- }else if(ending==="true"){
-   ctx.fillText("КОНЦОВКА: ЭХО",400,150);
-   ctx.font="17px monospace";drawText("Ты дошёл до конца, не позволив пустоте забрать всё. Архитектор исчез, а мир начал восстанавливаться.",170,210,460,26);
- }else{
-   ctx.fillText("КОНЦОВКА: ТИХИЙ СВЕТ",400,150);
-   ctx.font="17px monospace";drawText("Ты сохранил жизни врагов и нашёл другой путь. Коридор остался закрыт, а впереди появился новый рассвет.",170,210,460,26);
+ const title={
+  "МИРНАЯ":"КОНЦОВКА: ТИХИЙ СВЕТ",
+  "ОБЫЧНАЯ":"КОНЦОВКА: ВОЗВРАЩЕНИЕ",
+  "ГЕНОЦИД":"КОНЦОВКА: ПУСТОТА",
+  "ИСТИННАЯ":"КОНЦОВКА: ИСТИННОЕ ЭХО"
+ }[ending]||"КОНЦОВКА";
+ ctx.fillText(title,400,150);
+ ctx.font="17px monospace";ctx.fillStyle="#bbb";
+ const desc={
+  "МИРНАЯ":"Ты пощадил врагов. Мир получил шанс восстановиться.",
+  "ОБЫЧНАЯ":"Ты прошёл путь до конца и нашёл дорогу домой.",
+  "ГЕНОЦИД":"Ты уничтожил всё на своём пути. Архитектор Пустоты проснулся.",
+  "ИСТИННАЯ":"Ты сохранил Эхо и остановил Пустоту без разрушения мира."
+ }[ending];
+ wrap(desc,170,215,460,27);
+ ctx.fillStyle="#aaa";ctx.fillText("Z / ENTER — начать заново",400,350);
+ ctx.textAlign="left";
+}
+
+function startBattle(e,final=false){
+ battle={enemy:{...e},final,phase:"menu",soul:{x:400,y:255},bullets:[],timer:0};
+ state="battle";
+}
+function enemyTurn(){
+ battle.phase="dodge";battle.timer=0;battle.bullets=[];
+ for(let i=0;i<7;i++)battle.bullets.push({
+  x:220+i*48,y:145,w:8,h:8,
+  dx:(i%2?1:-1)*(1.2+i*.08),dy:1.2+(i%3)*.4
+ });
+}
+function attack(){
+ if(!battle)return;
+ const dmg=battle.final?12:8;
+ battle.enemy.hp-=dmg;
+ if(battle.enemy.hp<=0){
+  if(battle.final){
+   ending=genocide?"ГЕНОЦИД":"ИСТИННАЯ";state="ending";return;
+  }
+  kills++;
+  genocide=true;
+  addItem("Осколок Эха");
+  say("Ты победил врага. После этого пути назад почти нет.");
+  return;
  }
- ctx.font="14px monospace";ctx.fillStyle="#aaa";ctx.fillText("Обнови страницу, чтобы начать заново.",400,390);ctx.textAlign="left";
+ enemyTurn();
 }
+function spare(){
+ if(battle.final){say("Архитектор не принимает пощаду.");return}
+ spared++;battle=null;state="world";
+ say("Ты пощадил врага. Твой выбор изменил историю.");
+}
+function heal(){
+ if(!inventory.includes("Малое лечение")){say("Лечебных предметов нет.");return}
+ if(hp>=maxhp){say("HP уже полностью восстановлены.");return}
+ removeItem("Малое лечение");hp=Math.min(maxhp,hp+10);enemyTurn();
+}
+function corridorSequence(){
+ state="cutscene";let t=0;
+ const iv=setInterval(()=>{
+  t++;ctx.fillStyle="#000";ctx.fillRect(0,0,800,500);
+  ctx.textAlign="center";ctx.font="24px monospace";ctx.fillStyle="#fff";
+  if(t<50)ctx.fillText("КОРИДОР",400,220);
+  else if(t<100)ctx.fillText("Кто-то уже ждал тебя.",400,220);
+  else if(t<160){
+   ctx.fillStyle="#9ff";ctx.fillRect(80,220,640,18);
+   ctx.fillStyle="#fff";ctx.fillText("СИНИЙ ЛАЗЕР",400,190);
+  }else{
+   clearInterval(iv);
+   startBattle({name:"АРХИТЕКТ ПУСТОТЫ",hp:70,max:70,atk:8,
+    desc:"Главный босс. Настоящий бой начинается сейчас."},true);
+  }
+  ctx.textAlign="left";
+ },45);
+}
+function story(){
+ if(room===0&&!flags.metGuide&&player.x>250&&player.x<430&&player.y>180&&player.y<300){
+  flags.metGuide=true;
+  addItem("Кристальный осколок");
+  dialog=[
+   "Незнакомец: Ты не должен был сюда попасть.",
+   "Незнакомец: Этот мир держится на четырёх Эхо.",
+   "Незнакомец: Если Пустота проснётся, она поглотит воспоминания.",
+   "Незнакомец: Выборы будут иметь значение."
+  ];di=0;state="dialog";
+ }
+ if(room===1&&!flags.crystal&&player.x>500&&player.y<180){
+  flags.crystal=true;addItem("Старый ключ");
+  say("Ты открыл древний механизм и получил Старый ключ.");
+ }
+ if(room===2&&!flags.archive&&player.x<260&&player.y<170){
+  flags.archive=true;addItem("Чернильная страница");
+  say("В архиве написано: Архитектор создал Пустоту, чтобы сохранить мир.");
+ }
+}
+
+function updateBattle(){
+ if(!battle||battle.phase!=="dodge")return;
+ battle.timer++;
+ for(const b of battle.bullets){
+  b.x+=b.dx;b.y+=b.dy;
+  if(b.x<215||b.x>580)b.dx*=-1;
+  if(b.y>370)b.y=140;
+ }
+ for(const b of battle.bullets){
+  if(Math.abs(b.x-battle.soul.x)<12&&Math.abs(b.y-battle.soul.y)<12){
+   hp--;b.x=-100;
+   if(hp<=0){state="gameover";return}
+  }
+ }
+ if(battle.timer>150){battle.phase="menu";battle.bullets=[]}
+}
+
 function update(){
- if(state==="inventory"){return}
  if(state==="world"){
-   const k={}; window.__keys&&(Object.assign(k,window.__keys));
-   if(k["ArrowUp"]||k["w"])player.y-=player.s;
-   if(k["ArrowDown"]||k["s"])player.y+=player.s;
-   if(k["ArrowLeft"]||k["a"])player.x-=player.s;
-   if(k["ArrowRight"]||k["d"])player.x+=player.s;
-   player.x=Math.max(48,Math.min(752,player.x));player.y=Math.max(70,Math.min(405,player.y));
-   if(player.x>720&&room<3){
- room++;player.x=70;
- if(room===1) text("Стеклянные пещеры. Кристаллы хранят воспоминания погибших существ.");
- else if(room===2) text("Заброшенный архив. Здесь ты находишь страницы о загадочном Архитекторе.");
- else text("Чёрный коридор. Теперь понятно: весь путь вёл сюда.");
-}
-   if(room===0&&player.x<170&&player.y<160)text("Здесь начинается история. Ищи выход справа.");
-   if(room===1&&player.x>330&&player.x<500&&player.y>180&&player.y<300&&!window.__met1){window.__met1=true;startBattle(enemies[0]);}
-   if(room===2&&player.x>500&&player.y>300&&!window.__met2){window.__met2=true;inventory.push("Кристалл");text("Ты нашёл Кристалл. Он восстанавливает 15 HP.");}
-   if(room===1&&player.x>650&&player.y>330&&!window.__crystal){window.__crystal=true;inventory.push("Кристалл");text("Ты нашёл Кристалл.");}
-   storyEvent();
-   if(room===3&&player.x>350&&player.y<170&&!window.__boss){
- window.__boss=true;
- if(kills===0 && spared>0){ ending="peace"; state="ending"; }
- else corridorSequence();
-}
-   if(room===3&&!genocide&&player.x>350&&player.y<170&&!window.__normalEnd){window.__normalEnd=true;giveItem("Эхо-сердце");storyFlags.sparedShadow=true;text("Ты находишь Эхо-сердце. Оно показывает тебе путь домой.");}
-   if(room===3&&!genocide&&ending==="none"&&player.x>650&&player.y>300){ending="ОБЫЧНАЯ";saveGame();text("Ты вышел из Чёрного коридора. Концовка: ПУТЬ ЭХА.");}
-   if(room===3&&!genocide&&player.x>650&&player.y>300&&!window.__peaceEnding){window.__peaceEnding=true;endings.push("ТИХАЯ КОНЦОВКА");state="ending";}
+  const k=window.__keys||{};
+  if(k.ArrowUp||k.w)player.y-=player.s;
+  if(k.ArrowDown||k.s)player.y+=player.s;
+  if(k.ArrowLeft||k.a)player.x-=player.s;
+  if(k.ArrowRight||k.d)player.x+=player.s;
+  player.x=Math.max(48,Math.min(752,player.x));
+  player.y=Math.max(70,Math.min(405,player.y));
+
+  if(player.x>720&&room<3){
+   room++;player.x=70;
+   say(["Стеклянные пещеры. Кристаллы хранят чужие воспоминания.",
+        "Заброшенный архив. Здесь слишком тихо.",
+        "Чёрный коридор. Весь путь вёл сюда."][room-1]);
+  }
+  if(room===1&&!window.met1&&player.x>330&&player.x<500&&player.y>180&&player.y<300){
+   window.met1=true;startBattle(enemies[0]);
+  }
+  if(room===2&&!window.met2&&player.x>500&&player.y>300){
+   window.met2=true;startBattle(enemies[1]);
+  }
+  story();
+
+  if(room===3&&!bossStarted&&player.x>350&&player.y<170){
+   bossStarted=true;
+   if(genocide){
+    corridorSequence();
+   }else if(spared>=1){
+    ending="МИРНАЯ";state="ending";
+   }else{
+    ending="ОБЫЧНАЯ";state="ending";
+   }
+  }
  }
  if(state==="battle")updateBattle();
 }
+
 function draw(){
  if(state==="title")title();
  else if(state==="world")world();
  else if(state==="dialog")dialogDraw();
+ else if(state==="inventory")inventoryDraw();
  else if(state==="battle")battleDraw();
- else if(state==="inventory")inventoryDraw();
  else if(state==="ending")endingDraw();
- else if(state==="inventory")inventoryDraw();
  else if(state==="cutscene"){}
- else if(state==="ending")endingDraw();
- else if(state==="victory"){
- ctx.fillStyle="#050509";ctx.fillRect(0,0,800,500);ctx.fillStyle="#fff";ctx.font="30px monospace";
- ctx.fillText("КОНЦОВКА: "+(genocide?"ПОСЛЕДНИЙ ЭХО":"ВОЗВРАЩЕНИЕ"),220,220);
- ctx.font="16px monospace";ctx.fillText(genocide?"Ты победил Архитектора Пустоты.":"Ты сохранил мир и вышел из подземелья.",230,260);
-}
- else if(state==="ending"){
- ctx.fillStyle="#050509";ctx.fillRect(0,0,800,500);
- ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="30px monospace";ctx.fillText(endings[endings.length-1]||"КОНЦОВКА",400,210);
- ctx.font="16px monospace";ctx.fillStyle="#aaa";ctx.fillText("Z — начать новую игру",400,260);ctx.textAlign="left";
-}
-else if(state==="inventory"){world();inventoryDraw();}
- else if(state==="ending"){
-   ctx.fillStyle="#050509";ctx.fillRect(0,0,800,500);ctx.textAlign="center";
-   ctx.fillStyle="#fff";ctx.font="30px monospace";ctx.fillText(ending,400,210);
-   ctx.font="17px monospace";ctx.fillStyle="#bbb";
-   if(ending.startsWith("Геноцид"))ctx.fillText("Ты прошёл путь разрушения и встретил Архитектора Пустоты.",400,255);
-   else if(ending.startsWith("Мирная"))ctx.fillText("Пощада изменила финал. В мире осталась искра.",400,255);
-   else ctx.fillText("Ты дошёл до конца, но сделал выборы между двумя путями.",400,255);
-   ctx.fillStyle="#fff";ctx.fillText("Z — начать новую игру",400,320);ctx.textAlign="left";
+ else if(state==="gameover"){
+  ctx.fillStyle="#000";ctx.fillRect(0,0,800,500);
+  ctx.fillStyle="#fff";ctx.font="30px monospace";ctx.fillText("ТЫ ПАЛ",330,230);
+  ctx.font="16px monospace";ctx.fillText("Z — начать заново",300,270);
  }
- else if(state==="gameover"){ctx.fillStyle="#000";ctx.fillRect(0,0,800,500);ctx.fillStyle="#fff";ctx.font="30px monospace";ctx.fillText("ТЫ ПАЛ",330,230);ctx.font="16px monospace";ctx.fillText("Z — загрузить сохранение",275,270);ctx.fillText("N — новая игра",315,300)}
 }
+
 window.__keys={};
-addEventListener("keydown",e=>{window.__keys[e.key]=true;
- if((e.key==="i"||e.key==="I")){if(state==="world")showInventory();else if(state==="inventory"){state="world";invOpen=false;}}
- if((state==="world"||state==="dialog")&&e.key.toLowerCase()==="i"){invOpen=!invOpen;return}
- if(invOpen&&(e.key.toLowerCase()==="i"||e.key==="Escape")){invOpen=false;return}
- if(invOpen&&(e.key==="z"||e.key==="Enter")){useItem();invOpen=false;return}
- if((e.key==="i"||e.key==="I") && (state==="world"||state==="dialog")){state="inventory";return}
- if(state==="inventory"){
-   if(e.key==="x"||e.key==="Escape"){state="world";return}
-   if((e.key==="z"||e.key==="Enter") && inventory.length){items[inventory[0]]?.use();return}
+addEventListener("keydown",e=>{
+ window.__keys[e.key]=true;
+
+ if(state==="title"&&(e.key==="z"||e.key==="Enter")){
+  state="world";
+  say("Ты просыпаешься в Пепельном дворе. Впереди неизвестный путь.");
  }
- if(state==="title"&&(e.key==="z"||e.key==="Enter")){state="world";text("Ты просыпаешься в неизвестном мире. Впереди четыре локации. Но кто-то уже знает твоё имя.");}
  else if(state==="dialog"&&(e.key==="z"||e.key==="Enter"))next();
+ else if(state==="world"&&(e.key==="i"||e.key==="I"))state="inventory";
+ else if(state==="inventory"&&(e.key==="i"||e.key==="I"||e.key==="x"||e.key==="Escape"))state="world";
+ else if(state==="inventory"&&(e.key==="z"||e.key==="Enter")){
+  if(inventory.includes("Малое лечение")&&hp<maxhp){
+   removeItem("Малое лечение");hp=Math.min(maxhp,hp+10);say("Ты использовал Малое лечение. +10 HP.");
+  }else say("Этот предмет сейчас использовать нельзя.");
+ }
+ else if(state==="world"&&(e.key==="p"||e.key==="P"))saveGame();
+ else if(state==="title"&&(e.key==="l"||e.key==="L"))loadGame();
  else if(state==="battle"&&battle&&battle.phase==="menu"&&(e.key==="z"||e.key==="Enter"))attack();
  else if(state==="battle"&&battle&&battle.phase==="menu"&&(e.key==="x"||e.key==="Escape"))spare();
- else if(state==="battle"&&battle&&battle.phase==="menu"&&(e.key==="h")){let item=inventory.find(i=>i.name==="Лечебный кристалл"&&i.qty>0);if(item){item.qty--;hp=Math.min(maxhp,hp+10);enemyTurn();}else showOverlay("ИНВЕНТАРЬ","Лечебных кристаллов больше нет.");}
- else if(state==="battle"&&battle&&battle.phase==="dodge"){if(e.key==="ArrowUp"||e.key==="w")battle.soul.y-=12;if(e.key==="ArrowDown"||e.key==="s")battle.soul.y+=12;if(e.key==="ArrowLeft"||e.key==="a")battle.soul.x-=12;if(e.key==="ArrowRight"||e.key==="d")battle.soul.x+=12;battle.soul.x=Math.max(220,Math.min(580,battle.soul.x));battle.soul.y=Math.max(140,Math.min(370,battle.soul.y));}
- if((state==="gameover"||state==="ending")&&(e.key==="z"||e.key==="Enter"))location.reload();
+ else if(state==="battle"&&battle&&battle.phase==="menu"&&(e.key==="h"||e.key==="H"))heal();
+ else if(state==="battle"&&battle&&battle.phase==="dodge"){
+  if(e.key==="ArrowUp"||e.key==="w")battle.soul.y-=12;
+  if(e.key==="ArrowDown"||e.key==="s")battle.soul.y+=12;
+  if(e.key==="ArrowLeft"||e.key==="a")battle.soul.x-=12;
+  if(e.key==="ArrowRight"||e.key==="d")battle.soul.x+=12;
+  battle.soul.x=Math.max(220,Math.min(580,battle.soul.x));
+  battle.soul.y=Math.max(140,Math.min(370,battle.soul.y));
+ }
+ else if(state==="gameover"&&(e.key==="z"||e.key==="Enter"))location.reload();
+ else if(state==="ending"&&(e.key==="z"||e.key==="Enter"))location.reload();
 });
 addEventListener("keyup",e=>delete window.__keys[e.key]);
-addEventListener("keydown",e=>{
- if(e.key==="i"||e.key==="I"){if(state==="world"||state==="battle")inventoryView();}
- if(e.key==="p"||e.key==="P"){if(state!=="title")saveGame();}
- if((e.key==="l"||e.key==="L")&&state==="title")loadGame();
-});
-function loop(){update();draw();if(invOpen&&(state==="world"||state==="dialog"))inventoryDraw();requestAnimationFrame(loop)}loop();
-document.getElementById("ovClose").addEventListener("click",()=>document.getElementById("overlay").style.display="none");
+
+function loop(){update();draw();requestAnimationFrame(loop)}
+loop();
 </script>
-</body></html>
+</body>
+</html>
