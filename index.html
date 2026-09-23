@@ -987,3 +987,36 @@ addEventListener("keydown",e=>{
 </script>
 </body>
 </html>
+
+/* ===== FINAL SECRET DOOR FIX =====
+   The door is an interaction point, not a room transition.  Handle Z/Enter
+   directly so other world interactions cannot consume the same key press. */
+function secretDoorNearby(){
+  return state==="world" && room===6 && zoneRoom===2 &&
+    Math.hypot(player.x-650,player.y-100)<115;
+}
+function useSecretDoor(){
+  if(!secretDoorNearby())return false;
+  window.__actionPressed=false;
+  if(qstate.every(x=>x.done) && kills===0){
+    startSecretBoss();
+  }else{
+    say("Дверь запечатана.\n\nСемь Эхо должны быть восстановлены, а путь пощады сохранён.");
+  }
+  return true;
+}
+addEventListener("keydown",e=>{
+  if((e.key==="Enter"||e.key==="z"||e.key==="Z") && secretDoorNearby()){
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    useSecretDoor();
+  }
+},true);
+const __doorUpdate=update;
+update=function(){
+  __doorUpdate();
+  if(state==="world" && secretDoorNearby() && window.__actionPressed){
+    useSecretDoor();
+  }
+};
+
