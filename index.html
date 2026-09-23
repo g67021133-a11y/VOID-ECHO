@@ -984,9 +984,6 @@ addEventListener("keydown",e=>{
   }
 });
 
-</script>
-</body>
-</html>
 
 /* ===== FINAL SECRET DOOR FIX =====
    The door is an interaction point, not a room transition.  Handle Z/Enter
@@ -1020,3 +1017,112 @@ update=function(){
   }
 };
 
+/* ===== MAIN MENU + MODS ===== */
+let menuPage="main",menuIndex=0;
+let modRandomMonsters=false;
+let modReverseRush=false;
+let reverseStage=0;
+const reverseStages=["architect","gear","echo","thorn","bug","crystal","morok"];
+const reverseNames=["АРХИТЕКТОР ПУСТОТЫ","МЕХАНИЧЕСКИЙ СТРАЖ","ЭХО-РЫБА","РЖАВЫЙ ШИП","АРХИВНЫЙ ЖУК","КРИСТАЛЛ-РЫЦАРЬ","МОРОК"];
+function countdownText(){
+ const end=new Date(2026,9,2,0,0,0).getTime();
+ let sec=Math.max(0,Math.floor((end-Date.now())/1000));
+ const d=Math.floor(sec/86400);sec%=86400;const h=Math.floor(sec/3600);sec%=3600;const m=Math.floor(sec/60);const ss=sec%60;
+ return d+"д "+String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(ss).padStart(2,"0");
+}
+function startNewGame(){
+ hp=maxhp=30;kills=spared=gold=0;genocide=false;ending="";bossStarted=false;
+ room=0;zoneRoom=0;player={x:110,y:390,r:10,s:3};inventory=["Малое лечение","Старая записка"];
+ flags={guide:false,items:0};qstate=Array.from({length:7},()=>({step:0,done:false}));
+ randomEncounterMeter=0;randomEncounterCooldown=240;reverseStage=0;
+ if(modReverseRush){state="world";setTimeout(()=>startReverseStage(),80);}
+ else {state="world";say("Ты просыпаешься в Пепельном дворе. Впереди семь локаций.");}
+}
+function startReverseStage(){
+ if(!modReverseRush)return;
+ const key=reverseStages[reverseStage];
+ if(!key){state="world";say("Босс-реверс завершён. Теперь путь идёт от самого сильного к самому лёгкому.");return;}
+ const isBoss=key==="architect";
+ startBattle(key,isBoss);
+ if(battle){battle.reverseRush=true;battle.reverseStage=reverseStage;battle.secret=isBoss;}
+}
+function drawMainMenu(){
+ ctx.fillStyle="#050509";ctx.fillRect(0,0,800,500);ctx.textAlign="center";
+ ctx.fillStyle="#fff";ctx.font="bold 46px monospace";ctx.fillText("VOID ECHO",400,78);
+ ctx.font="15px monospace";ctx.fillStyle="#888";ctx.fillText("оригинальная пиксельная RPG",400,106);
+ if(menuPage==="main"){
+   const items=[hasCheckpoint()?"ПРОДОЛЖИТЬ":"ИГРАТЬ","МОДЫ","ИГРАТЬ МУЛЬТИПЛЕЕР"];
+   items.forEach((t,i)=>{ctx.fillStyle=i===menuIndex?"#fff":"#777";ctx.font="20px monospace";ctx.fillText((i===menuIndex?"> ":"  ")+t+(i===2?" *":""),400,180+i*55)});
+   ctx.font="12px monospace";ctx.fillStyle="#666";ctx.fillText("* сетевой мультиплеер требует отдельного сервера",400,350);
+   ctx.fillStyle="#9ff";ctx.font="16px monospace";ctx.fillText("ДО 2 ОКТЯБРЯ: "+countdownText(),400,395);
+   ctx.fillStyle="#aaa";ctx.font="12px monospace";ctx.fillText("↑↓ — выбор • Z / ENTER — подтвердить",400,435);
+ }else{
+   ctx.font="24px monospace";ctx.fillStyle="#fff";ctx.fillText("МОДЫ",400,150);
+   const items=["РАНДОМНЫЕ МОНСТРЫ: "+(modRandomMonsters?"ВКЛ":"ВЫКЛ"),"РЕВЕРС: БОССЫ → ЛЁГКИЕ: "+(modReverseRush?"ВКЛ":"ВЫКЛ"),"НАЗАД"];
+   items.forEach((t,i)=>{ctx.fillStyle=i===menuIndex?"#fff":"#777";ctx.font="17px monospace";ctx.fillText((i===menuIndex?"> ":"  ")+t,400,225+i*55)});
+   ctx.fillStyle="#aaa";ctx.font="12px monospace";ctx.fillText("Рандомные монстры добавляют случайные бои при исследовании.",400,405);
+   ctx.fillText("Реверс запускает цепочку от Архитектора к Мороку.",400,425);
+ }
+ ctx.textAlign="left";
+}
+const __titleOld=title;
+title=function(){drawMainMenu()};
+const __randomEncounterBase=randomEncounter;
+randomEncounter=function(){if(!modRandomMonsters)return;__randomEncounterBase();};
+
+/* Boss → easy reverse mode. It is a separate boss-rush sequence and does not alter the normal story. */
+const __attackBeforeMods=attack;
+attack=function(){
+ const rr=!!(battle&&battle.reverseRush);
+ const stage=rr?(battle.reverseStage??0):-1;
+ __attackBeforeMods();
+ if(rr && state==="ending"){
+   if(stage<reverseStages.length-1){
+     ending="";state="world";battle=null;reverseStage=stage+1;
+     setTimeout(()=>{if(modReverseRush)startReverseStage();},650);
+   }
+ }
+};
+
+/* Main-menu keyboard and pointer controls use capture so the old title handler cannot start the game early. */
+addEventListener("keydown",e=>{
+ if(state!=="title")return;
+ const k=e.key;
+ if(menuPage==="main"){
+   if(k==="ArrowUp"){menuIndex=(menuIndex+2)%3;e.preventDefault();e.stopImmediatePropagation();}
+   else if(k==="ArrowDown"){menuIndex=(menuIndex+1)%3;e.preventDefault();e.stopImmediatePropagation();}
+   else if(k==="Enter"||k==="z"||k==="Z"){
+     e.preventDefault();e.stopImmediatePropagation();
+     if(menuIndex===0){if(hasCheckpoint()){loadGame();}else startNewGame();}
+     else if(menuIndex===1){menuPage="mods";menuIndex=0;}
+     else {say("МУЛЬТИПЛЕЕР\n\nСетевой режим пока не подключён. Эта версия работает как одиночная игра на GitHub Pages.\n\nДля настоящего мультиплеера понадобится сервер, который будет синхронизировать игроков.");}
+   }
+ }else{
+   if(k==="ArrowUp"){menuIndex=(menuIndex+2)%3;e.preventDefault();e.stopImmediatePropagation();}
+   else if(k==="ArrowDown"){menuIndex=(menuIndex+1)%3;e.preventDefault();e.stopImmediatePropagation();}
+   else if(k==="Escape"||k==="x"||k==="X"){menuPage="main";menuIndex=0;e.preventDefault();e.stopImmediatePropagation();}
+   else if(k==="Enter"||k==="z"||k==="Z"){
+     e.preventDefault();e.stopImmediatePropagation();
+     if(menuIndex===0)modRandomMonsters=!modRandomMonsters;
+     else if(menuIndex===1)modReverseRush=!modReverseRush;
+     else {menuPage="main";menuIndex=0;}
+   }
+ }
+},true);
+addEventListener("pointerdown",e=>{
+ if(state!=="title")return;
+ const r=c.getBoundingClientRect(),x=(e.clientX-r.left)*(800/r.width),y=(e.clientY-r.top)*(500/r.height);
+ if(menuPage==="main"){
+   if(y>145&&y<235){menuIndex=0;if(hasCheckpoint())loadGame();else startNewGame();}
+   else if(y>=235&&y<305){menuPage="mods";menuIndex=0;}
+   else if(y>=305&&y<375){say("МУЛЬТИПЛЕЕР\n\nСетевой режим пока не подключён. Для настоящего онлайна понадобится сервер синхронизации.");}
+ }else if(menuPage==="mods"){
+   if(y>190&&y<275){modRandomMonsters=!modRandomMonsters;}
+   else if(y>=275&&y<345){modReverseRush=!modReverseRush;}
+   else if(y>=345&&y<405){menuPage="main";menuIndex=0;}
+ }
+},true);
+
+</script>
+</body>
+</html>
