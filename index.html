@@ -934,6 +934,56 @@ endingDraw=function(){
 const __keydownRunReset=addEventListener;
 addEventListener("keydown",e=>{if(state==="ending"&&(e.key==="z"||e.key==="Enter")){__countedEnding=false;}});
 
+
+/* ===== SECRET BOSS DIALOG FIX =====
+   Dialogues opened during the Architect fight now return to the battle,
+   instead of sending the player back to the world. */
+let __dialogReturnState=null;
+const __sayReturnFix=say;
+say=function(t,returnState=null){
+  __dialogReturnState=returnState;
+  __sayReturnFix(t);
+};
+const __nextReturnFix=next;
+next=function(){
+  if(di<dialog.length-1){di++;return;}
+  dialog=[];
+  state=__dialogReturnState||"world";
+  __dialogReturnState=null;
+};
+
+/* Replace the secret-door boss launch so the Architect is marked as secret
+   BEFORE its introduction appears. This removes the brief normal-boss flash. */
+const __startSecretBossFix=startSecretBoss;
+startSecretBoss=function(){
+  if(battle&&battle.final)return;
+  if(!qstate.every(x=>x.done)||kills!==0){
+    say("Дверь запечатана.\n\nСемь Эхо должны быть восстановлены, а путь пощады сохранён.");
+    return;
+  }
+  badge("Никого не убил");
+  badge("Последний свидетель");
+  startBattle("architect",true);
+  if(!battle)return;
+  battle.secret=true;
+  battle.architectIntroShown=true;
+  say([
+    "АРХИТЕКТОР: "+architectRememberedLine(),
+    "АРХИТЕКТОР: Я помню Эхо каждого возвращения.",
+    "АРХИТЕКТОР: Посмотрим, сможешь ли ты закончить этот путь."
+  ],"battle");
+};
+
+/* Dialogue close buttons must use the same return state as next(). */
+addEventListener("keydown",e=>{
+  if(state==="dialog"&&(e.key==="x"||e.key==="Escape")){
+    e.preventDefault();
+    dialog=[];
+    state=__dialogReturnState||"world";
+    __dialogReturnState=null;
+  }
+});
+
 </script>
 </body>
 </html>
