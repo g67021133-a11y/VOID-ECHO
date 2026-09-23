@@ -168,8 +168,19 @@ enemyTurn();
 }
 function spare(){
 if(!battle||battle.phase!=="menu")return;
-if(battle.final){say("Архитектор не принимает пощаду.");return}
-let e=battle.enemies[battle.target];spared++;gold+=e.gold||0;battle.enemies.splice(battle.target,1);
+let e=battle.enemies[battle.target];
+/* Pacifist bosses can be spared. The final Architect accepts the choice and
+   resolves the route instead of leaving the player stuck in the world. */
+if(battle.final){
+  spared++;gold+=e.gold||0;
+  if(battle.secret){
+    battle=null;ending="МИРНАЯ";state="ending";badge("Полный пацифист");return;
+  }
+  battle.enemies.splice(battle.target,1);
+  if(battle.enemies.length===0){battle=null;state="world";say("Босс отступил. Путь продолжается — твоя пощада изменила историю.");return}
+  battle.target=Math.min(battle.target,battle.enemies.length-1);enemyTurn();return;
+}
+spared++;gold+=e.gold||0;battle.enemies.splice(battle.target,1);
 if(battle.enemies.length===0){battle=null;state="world";say("Ты пощадил всех врагов. Твой выбор изменил историю.");return}
 battle.target=Math.min(battle.target,battle.enemies.length-1);enemyTurn();
 }
@@ -291,7 +302,13 @@ function badgesDraw(){ctx.fillStyle="rgba(0,0,0,.95)";ctx.fillRect(80,55,640,390
 function secretRoom(){if(room===6&&routeFlags.secretDoor){room=6;player.x=650;player.y=100;state="world";badge("Охотник за комнатами");say("Ты вошёл в комнату, которой не было на карте.")} }
 function tryRareEncounter(){if(state!=="world"||rareCooldown>0)return;if(Math.random()<0.0015){rareCooldown=900;badge("Секретный гость");startBattle(["echo","morok"]);say("Редкая встреча! Существо пришло из другого Эха.")}}
 function startSecretBoss(){if(!qstate.every(x=>x.done)||kills!==0){say("Дверь запечатана. Семь Эхо должны быть восстановлены, а путь пощады сохранён.");return}badge("Никого не убил");badge("Последний свидетель");startBattle("architect",true);battle.secret=true}
-function applyNGPlus(){ngplus++;localStorage.setItem("void_echo_ngplus",ngplus);room=0;hp=30;maxhp=30;kills=0;spared=0;gold=0;genocide=false;bossStarted=false;qstate=Array.from({length:7},()=>({step:0,done:false}));routeFlags={ngplus:true};questSave();inventory=["Малое лечение","Старая записка","Печать NG+"];state="world";say("NG+ начат. Мир изменился, а некоторые персонажи помнят прошлую игру.")}
+function applyNGPlus(){
+ ngplus++;localStorage.setItem("void_echo_ngplus",ngplus);
+ resetRunData();routeFlags={ngplus:true};questSave();
+ inventory=["Малое лечение","Старая записка","Печать NG+"];
+ applyModStartStats();state="world";
+ say("NG+ начат. Все квесты, предметы и события прошлого прохождения сброшены. Но мир помнит тебя.");
+}
 function expandedBattleDraw(){if(!battle||!battle.secret)return;ctx.fillStyle="#9ff";ctx.font="12px monospace";ctx.fillText("СЕКРЕТНАЯ ФАЗА",600,30)}
 // Wrap existing functions without deleting the original systems.
 const __world=world,__update=update,__draw=draw,__startBattle=startBattle,__attack=attack;
@@ -1080,15 +1097,30 @@ function applyModStartStats(){
  if(modOn("tiny")){player.r=5;player.s=modOn("fast")?5:modOn("slow")?1.5:3}else player.r=10;
  if(modOn("fast"))player.s=5;if(modOn("slow"))player.s=1.5;
 }
-function startNewGame(){
+function resetRunData(){
  hp=maxhp=30;kills=spared=gold=0;genocide=false;ending="";bossStarted=false;room=0;zoneRoom=0;
  player={x:110,y:390,r:10,s:3};inventory=["Малое лечение","Старая записка"];flags={guide:false,items:0};
- qstate=Array.from({length:7},()=>({step:0,done:false}));randomEncounterMeter=0;randomEncounterCooldown=240;reverseStage=0;
- puzzleState={};localStorage.removeItem("void_echo_puzzles");
+ qstate=Array.from({length:7},()=>({step:0,done:false}));routeFlags={};
+ randomEncounterMeter=0;randomEncounterCooldown=240;reverseStage=0;
+ puzzleState={};
+ localStorage.removeItem(saveKey);
+ localStorage.removeItem("void_echo_quests");
+ localStorage.removeItem("void_echo_route");
+ localStorage.removeItem("void_echo_puzzles");
+ localStorage.removeItem("void_echo_visited_rooms");
+ localStorage.removeItem("void_echo_zone_room");
+ localStorage.removeItem("void_echo_checkpoint_room");
+ localStorage.removeItem("void_echo_long_progress");
+ visitedRooms={};
+ questSave();
+}
+function startNewGame(){
+ resetRunData();
  allModsRunActive=allModsOn();applyModStartStats();
+ let memory=completedRuns>0?"Ты снова входишь в этот мир. Некоторые Эхо помнят прошлое прохождение, но все квесты, предметы и события начались заново.":"Ты просыпаешься в Пепельном дворе. Впереди семь локаций.";
  if(modOn("bossrush")||modOn("reverse")){state="world";setTimeout(()=>startReverseStage(modOn("reverse")),80);}
- else if(modOn("bossrooms")){state="world";say("Режим модов активирован. Даже обычные комнаты теперь опасны.");}
- else {state="world";say("Ты просыпаешься в Пепельном дворе. Впереди семь локаций.");}
+ else if(modOn("bossrooms")){state="world";say([memory,"Режим модов активирован. Даже обычные комнаты теперь опасны."]);}
+ else {state="world";say(memory);}
 }
 function startReverseStage(reverse=true){
  const list=reverse?reverseStages:["architect","gear","echo","thorn","bug","crystal","morok"];
