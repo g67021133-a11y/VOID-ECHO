@@ -18,11 +18,28 @@ canvas{width:min(96vw,960px);height:auto;max-height:90vh;background:#08080d;bord
 <body>
 <div id="game"><canvas id="c" width="800" height="500"></canvas></div><div id="mobile"><button data-k="ArrowLeft">◀</button><button data-k="ArrowRight">▶</button><button data-k="h">HEAL</button><button data-k="z">Z</button></div>
 <div id="hint">WASD / стрелки — движение • Z/Enter — действие • X/Esc — назад • I — инвентарь • P — сохранить</div>
+<div id="mobile"><div class="stick"><button class="up" data-k="ArrowUp">▲</button><button class="down" data-k="ArrowDown">▼</button><button class="left" data-k="ArrowLeft">◀</button><button class="right" data-k="ArrowRight">▶</button></div><div class="actions"><button class="ax" data-k="x">X</button><button class="az" data-k="z">Z</button><button class="ai" data-k="i">INV</button><button class="ah" data-k="h">HEAL</button></div></div>
 <script>
 const c=document.getElementById("c"),ctx=c.getContext("2d");ctx.imageSmoothingEnabled=false;
 let state="title",room=0,hp=30,maxhp=30,kills=0,spared=0,gold=0,genocide=false,ending="",bossStarted=false;
 let player={x:110,y:390,r:10,s:3},dialog=[],di=0,battle=null,inventory=["Малое лечение","Старая записка"];
 let flags={guide:false,items:0}, saveKey="void_echo_save_v4";
+let quest={step:0,done:false};
+const questData=[
+{name:"Пепельная руна",steps:[[120,110],[650,110],[650,360],[420,360],[585,260]],reward:25,desc:"Активируй руны в правильном порядке и вернись к статуе."},
+{name:"Хрустальный хор",steps:[[650,110],[150,360],[400,120],[650,360],[400,270]],reward:30,desc:"Найди кристаллы в порядке: высокий → низкий → центр → отражение."},
+{name:"Архив без имени",steps:[[650,360],[650,110],[150,110],[400,360],[400,270]],reward:35,desc:"Страницы спрятаны по полкам. Ошибка сбрасывает последовательность."},
+{name:"Ржавый сад",steps:[[150,360],[650,360],[150,110],[650,110],[400,270]],reward:40,desc:"Собери четыре ключа сада и открой центральный механизм."},
+{name:"Эхо-ритм",steps:[[150,110],[650,110],[400,360],[150,360],[400,270]],reward:45,desc:"Повтори ритм волн: левый → правый → низ → левый → центр."},
+{name:"Механический код",steps:[[650,360],[150,110],[650,110],[150,360],[400,270]],reward:50,desc:"Шестерни нужно повернуть строго по коду. Центральная — последняя."},
+{name:"Последний коридор",steps:[[650,110],[150,360],[150,110],[650,360],[400,270]],reward:75,desc:"Собери четыре фрагмента Эха и открой дверь Пустоты."}
+];
+let audioCtx=null,musicTimer=null;
+function startMusic(){if(audioCtx)return;try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();let notes=[110,146.83,164.81,220,196,164.81,146.83,123.47],i=0;musicTimer=setInterval(()=>{if(!audioCtx)return;let o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="triangle";o.frequency.value=notes[i++%notes.length];g.gain.setValueAtTime(.0001,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.035,audioCtx.currentTime+.03);g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+.45);o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+.5)},360)}catch(e){}}
+function resetQuest(){quest={step:0,done:false};}
+function distTo(a,b){return Math.hypot(a[0]-player.x,a[1]-player.y)}
+function questUpdate(){if(quest.done)return;let q=questData[room],pt=q.steps[quest.step];if(pt&&distTo(pt)<38){quest.step++;if(quest.step>=q.steps.length){quest.done=true;gold+=q.reward;addItem("Награда Эха");say(["Квест завершён: "+q.name,"Ты получил "+q.reward+" монет и предмет «Награда Эха»." ]);}else say("Верно. Следующий механизм активирован.");}}
+function questDraw(){if(quest.done)return;let q=questData[room];ctx.fillStyle="#d9c27a";ctx.font="13px monospace";ctx.fillText("КВЕСТ: "+q.name+"  "+quest.step+"/"+q.steps.length,55,55);ctx.fillStyle="#aaa";ctx.fillText(q.desc,55,72);let pt=q.steps[quest.step];if(pt){ctx.strokeStyle="#d9c27a";ctx.strokeRect(pt[0]-18,pt[1]-18,36,36);}}
 const rooms=[
 {name:"Пепельный двор",bg:"#15131c",intro:"Пепельный двор. Здесь начинается Эхо."},
 {name:"Стеклянные пещеры",bg:"#0e1b25",intro:"Стеклянные пещеры. Кристаллы повторяют голоса прошлого."},
@@ -69,8 +86,10 @@ let r=rooms[room];ctx.fillStyle=r.bg;ctx.fillRect(0,0,800,500);
 for(let i=0;i<14;i++){ctx.fillStyle=i%2?"#252536":"#20202e";ctx.fillRect(i*65,75+(i%3)*22,42,145+(i%2)*55)}
 ctx.fillStyle="#303040";ctx.fillRect(0,420,800,80);ctx.fillStyle="#11111a";ctx.fillRect(35,55,730,365);ctx.strokeStyle="#55556b";ctx.strokeRect(35,55,730,365);
 if(room<6){ctx.fillStyle="#777";ctx.fillRect(735,205,30,80)}
+if(room===0){ctx.fillStyle="#777";ctx.fillRect(575,255,28,65);ctx.fillStyle="#999";ctx.beginPath();ctx.arc(589,235,28,0,Math.PI*2);ctx.fill();ctx.fillStyle="#222";ctx.fillRect(579,228,7,7);ctx.fillRect(592,228,7,7);ctx.fillStyle="#d9c27a";ctx.font="12px monospace";ctx.fillText("ZINTER",560,340)}
+let qp=questData[room].steps[quest.step];if(!quest.done&&qp){ctx.strokeStyle="#d9c27a";ctx.strokeRect(qp[0]-18,qp[1]-18,36,36);ctx.fillStyle="#d9c27a";ctx.font="12px monospace";ctx.fillText("?",qp[0]-4,qp[1]+5)}
 ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,Math.PI*2);ctx.fill();
-ctx.font="18px monospace";ctx.fillText(r.name,55,35);ctx.font="14px monospace";ctx.fillStyle="#bbb";ctx.fillText("HP "+hp+"/"+maxhp+"   Убийств: "+kills+"   Пощад: "+spared+"   Монет: "+gold,55,475);
+ctx.font="18px monospace";ctx.fillText(r.name,55,35);questDraw();ctx.font="14px monospace";ctx.fillStyle="#bbb";ctx.fillText("HP "+hp+"/"+maxhp+"   Убийств: "+kills+"   Пощад: "+spared+"   Монет: "+gold,55,475);
 if(genocide){ctx.fillStyle="#d66";ctx.fillText("МАРШРУТ: ГЕНОЦИД",575,35)}
 }
 function dialogDraw(){world();ctx.fillStyle="rgba(0,0,0,.9)";ctx.fillRect(45,330,710,125);ctx.strokeStyle="#fff";ctx.strokeRect(45,330,710,125);ctx.fillStyle="#fff";ctx.font="18px monospace";wrap(dialog[di],70,365,660);ctx.font="13px monospace";ctx.fillStyle="#aaa";ctx.fillText("Z / ENTER — продолжить",560,435)}
@@ -187,24 +206,28 @@ function update(){
 if(state==="world"){
 let k=window.__keys||{};if(k.ArrowUp||k.w)player.y-=player.s;if(k.ArrowDown||k.s)player.y+=player.s;if(k.ArrowLeft||k.a)player.x-=player.s;if(k.ArrowRight||k.d)player.x+=player.s;
 player.x=Math.max(48,Math.min(752,player.x));player.y=Math.max(70,Math.min(405,player.y));
-if(player.x>720&&room<6){room++;player.x=70;say(rooms[room].intro);return}
+if(player.x>720&&room<6){room++;player.x=70;resetQuest();say([rooms[room].intro,"Особый квест: "+questData[room].name,"Задание: "+questData[room].desc]);return}
 if(room>0&&player.x>330&&player.x<500&&player.y>180&&player.y<300&&!flags["battle"+room]){flags["battle"+room]=true;startBattle(encounters[room]);return}
 story();
+questUpdate();
 if(room===6&&player.x>350&&player.y<170&&!bossStarted){bossStarted=true;if(genocide)corridorSequence();else if(spared>=3){ending="МИРНАЯ";state="ending"}else{ending="ОБЫЧНАЯ";state="ending"}}
 }
 if(state==="battle")updateBattle();
 }
 
-function draw(){document.getElementById("mobile").style.display=(state==="battle")?"flex":"none";
+function draw(){
 if(state==="title")title();else if(state==="world")world();else if(state==="dialog")dialogDraw();else if(state==="inventory")inventoryDraw();else if(state==="battle")battleDraw();else if(state==="ending")endingDraw();
 else if(state==="cutscene"){}else if(state==="gameover"){ctx.fillStyle="#000";ctx.fillRect(0,0,800,500);ctx.fillStyle="#fff";ctx.font="30px monospace";ctx.fillText("ТЫ ПАЛ",330,230);ctx.font="16px monospace";ctx.fillText("Z — начать заново",300,270)}
 }
 window.__keys={};
-document.querySelectorAll("#mobile button").forEach(btn=>btn.addEventListener("pointerdown",e=>{e.preventDefault();const k=btn.dataset.k;if(k==="h"&&state==="battle"&&battle&&battle.phase==="menu")heal();else if(k==="z"){if(state==="battle"&&battle&&battle.phase==="menu")attack();else if(state==="dialog")next();else if(state==="title")state="world";}else if(state==="battle"&&battle&&battle.phase==="menu"&&(k==="ArrowLeft"||k==="ArrowRight")){battle.target=(battle.target+(k==="ArrowLeft"?-1:1)+battle.enemies.length)%battle.enemies.length}}));
+function mobileAction(k){startMusic();if(k.startsWith("Arrow")){if(state==="battle"&&battle&&battle.phase==="menu"&&(k==="ArrowLeft"||k==="ArrowRight")){battle.target=(battle.target+(k==="ArrowLeft"?-1:1)+battle.enemies.length)%battle.enemies.length;return}window.__keys[k]=true;return}if(k==="z"){if(state==="battle"&&battle&&battle.phase==="menu")attack();else if(state==="dialog")next();else if(state==="title"){state="world";say([rooms[0].intro,"Особый квест: "+questData[0].name,"Задание: "+questData[0].desc]);}else if(state==="world"&&room===0&&Math.hypot(player.x-589,player.y-260)<65)say("статуя ZINTER");}else if(k==="x"&&state==="battle"&&battle&&battle.phase==="menu")spare();else if(k==="h"&&state==="battle"&&battle&&battle.phase==="menu")heal();else if(k==="i"&&state==="world")state="inventory";}
+document.querySelectorAll("#mobile [data-k]").forEach(btn=>{btn.addEventListener("pointerdown",e=>{e.preventDefault();btn.setPointerCapture?.(e.pointerId);mobileAction(btn.dataset.k)});btn.addEventListener("pointerup",e=>{e.preventDefault();if(btn.dataset.k.startsWith("Arrow"))delete window.__keys[btn.dataset.k]});btn.addEventListener("pointercancel",()=>{if(btn.dataset.k.startsWith("Arrow"))delete window.__keys[btn.dataset.k]});});
+
 addEventListener("keydown",e=>{
 window.__keys[e.key]=true;
-if(state==="title"&&(e.key==="z"||e.key==="Enter")){state="world";say("Ты просыпаешься в Пепельном дворе. Впереди семь локаций.");}
+if(state==="title"&&(e.key==="z"||e.key==="Enter")){startMusic();state="world";say(["Ты просыпаешься в Пепельном дворе. Впереди семь локаций.","Особый квест: "+questData[0].name,"Задание: "+questData[0].desc]);}
 else if(state==="dialog"&&(e.key==="z"||e.key==="Enter"))next();
+else if(state==="world"&&(e.key==="z"||e.key==="Enter")&&room===0&&Math.hypot(player.x-589,player.y-260)<65)say("статуя ZINTER");
 else if(state==="world"&&(e.key==="i"||e.key==="I"))state="inventory";
 else if(state==="inventory"&&(e.key==="i"||e.key==="I"||e.key==="x"||e.key==="Escape"))state="world";
 else if(state==="inventory"&&(e.key==="z"||e.key==="Enter")){if(inventory.includes("Малое лечение")&&hp<maxhp){removeItem("Малое лечение");hp=Math.min(maxhp,hp+10);say("Ты использовал Малое лечение. +10 HP.")}else say("Этот предмет сейчас использовать нельзя.")}
