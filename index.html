@@ -211,7 +211,7 @@ player.x=Math.max(48,Math.min(752,player.x));player.y=Math.max(70,Math.min(405,p
 /* expanded version handles horizontal room exits */
 if(false&&room>0&&player.x>330&&player.x<500&&player.y>180&&player.y<300&&!flags["battle"+room]){flags["battle"+room]=true;startBattle(encounters[room]);return}
 story();
-if(room===6&&zoneRoom===2&&player.x>350&&player.y<170&&!bossStarted){bossStarted=true;corridorSequence();}
+if(false&&room===6&&zoneRoom===2&&player.x>350&&player.y<170&&!bossStarted){bossStarted=true;corridorSequence();}
 }
 if(state==="battle")updateBattle();
 }
@@ -801,6 +801,12 @@ update=function(){
  /* prevent the old one-room exit from being the only way forward: reposition at the subroom edge */
  if(player.x>742){roomTransition(1);return}
  if(player.x<58){roomTransition(-1);return}
+ /* final secret door interaction */
+ if(room===6&&zoneRoom===2&&Math.hypot(player.x-650,player.y-100)<75&&window.__actionPressed){
+   window.__actionPressed=false;
+   if(qstate.every(x=>x.done)&&kills===0){startSecretBoss();}else{say("Дверь запечатана.\n\nСемь Эхо должны быть восстановлены, а путь пощады сохранён.");}
+   return;
+ }
  /* puzzle interaction */
  if(window.__actionPressed && Math.hypot(player.x-400,player.y-270)<65){window.__actionPressed=false;solvePuzzle();return}
  /* auto-save on each location/room entry */
@@ -814,6 +820,15 @@ world=function(){
  ctx.fillText("← назад   → дальше",600,55);
  ctx.fillText("Пазл: "+(puzzleSolved()?"решён":"не решён"),55,70);
  drawSavePoint();
+if(room===6&&zoneRoom===2){
+ ctx.save();
+ ctx.fillStyle=(qstate.every(x=>x.done)&&kills===0)?"#9ff":"#555";
+ ctx.fillRect(625,70,50,70);
+ ctx.strokeStyle="#fff";ctx.strokeRect(625,70,50,70);
+ ctx.fillStyle="#fff";ctx.font="10px monospace";ctx.textAlign="center";
+ ctx.fillText("ДВЕРЬ",650,92);ctx.fillText("Z",650,108);
+ ctx.restore();
+}
 drawPuzzle();ctx.restore();
 };
 /* Load expanded position too. */
