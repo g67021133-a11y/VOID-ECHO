@@ -221,7 +221,23 @@ if(state==="title")title();else if(state==="world")world();else if(state==="dial
 else if(state==="cutscene"){}else if(state==="gameover"){ctx.fillStyle="#000";ctx.fillRect(0,0,800,500);ctx.fillStyle="#fff";ctx.font="30px monospace";ctx.fillText("ТЫ ПАЛ",330,230);ctx.font="16px monospace";ctx.fillText("Z — начать заново",300,270)}
 }
 window.__keys={};
-document.querySelectorAll("#mobile button").forEach(btn=>{btn.addEventListener("pointerdown",e=>{e.preventDefault();const k=btn.dataset.k;if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(k)){window.__keys[k]=true;return}if(k==="h"&&state==="battle"&&battle&&battle.phase==="menu")heal();else if(k==="i"){if(state==="world")state="inventory";else if(state==="inventory")state="world"}else if(k==="x"){if(state==="shop")closeShop();else if(state==="inventory")state="world";else if(state==="battle"&&battle&&battle.phase==="menu")spare();else if(state==="dialog")state="world"}else if(k==="z"){if(state==="battle"&&battle&&battle.phase==="menu")attack();else if(state==="dialog")next();else if(state==="title")state="world";}});btn.addEventListener("pointerup",e=>{const k=btn.dataset.k;if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(k))delete window.__keys[k]});btn.addEventListener("pointercancel",()=>{delete window.__keys[btn.dataset.k]})});
+document.querySelectorAll("#mobile button").forEach(btn=>{btn.addEventListener("pointerdown",e=>{e.preventDefault();const k=btn.dataset.k;if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(k)){window.__keys[k]=true;return}if(k==="h"&&state==="battle"&&battle&&battle.phase==="menu")heal();else if(k==="i"){if(state==="world")state="inventory";else if(state==="inventory")state="world"}else if(k==="x"){if(state==="shop")closeShop();else if(state==="inventory")state="world";else if(state==="battle"&&battle&&battle.phase==="menu")spare();else if(state==="dialog")state="world"}else if(k==="z"){
+ if(state==="battle"&&battle&&battle.phase==="menu")attack();
+ else if(state==="dialog")next();
+ else if(state==="title"){
+   if(typeof menuPage!=="undefined"){
+     if(menuPage==="main"){
+       if(menuIndex===0){if(hasCheckpoint())loadGame();else startNewGame();}
+       else if(menuIndex===1){menuPage="mods";menuIndex=0;}
+       else say("МУЛЬТИПЛЕЕР\n\nСетевой режим пока не подключён.");
+     }else{
+       if(menuIndex===0)modRandomMonsters=!modRandomMonsters;
+       else if(menuIndex===1)modReverseRush=!modReverseRush;
+       else{menuPage="main";menuIndex=0;}
+     }
+   }else state="world";
+ }
+}});btn.addEventListener("pointerup",e=>{const k=btn.dataset.k;if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(k))delete window.__keys[k]});btn.addEventListener("pointercancel",()=>{delete window.__keys[btn.dataset.k]})});
 addEventListener("keydown",e=>{
 window.__keys[e.key]=true;
 if(state==="title"&&(e.key==="z"||e.key==="Enter")){state="world";say("Ты просыпаешься в Пепельном дворе. Впереди семь локаций.");}
@@ -1017,111 +1033,195 @@ update=function(){
   }
 };
 
-/* ===== MAIN MENU + MODS ===== */
-let menuPage="main",menuIndex=0;
-let modRandomMonsters=false;
-let modReverseRush=false;
+/* ===== MAIN MENU + FULL MOD SYSTEM ===== */
+const MODS=[
+ {id:"random",name:"РАНДОМНЫЕ МОНСТРЫ",desc:"Случайные враги появляются во время исследования."},
+ {id:"reverse",name:"РЕВЕРС: БОССЫ → ЛЁГКИЕ",desc:"Архитектор → Страж → Рыба → Шип → Жук → Рыцарь → Морок."},
+ {id:"noheal",name:"БЕЗ ЛЕЧЕНИЯ",desc:"Лечение полностью отключено."},
+ {id:"onehp",name:"1 HP",desc:"У тебя всегда максимум 1 HP."},
+ {id:"hardcore",name:"ХАРДКОР",desc:"После смерти текущее сохранение сбрасывается."},
+ {id:"bossrush",name:"БОСС-РАШ",desc:"Только боссы подряд."},
+ {id:"nospare",name:"БЕЗ ПОЩАДЫ",desc:"Команда пощады отключена."},
+ {id:"onlyspare",name:"ТОЛЬКО ПОЩАДА",desc:"Атака врагов отключена."},
+ {id:"double",name:"ДВОЙНЫЕ ВСТРЕЧИ",desc:"Обычные встречи становятся группами."},
+ {id:"crazy",name:"БЕЗУМНЫЕ ВСТРЕЧИ",desc:"Случайные комбинации врагов."},
+ {id:"bossrooms",name:"БОССЫ В КОМНАТАХ",desc:"Иногда обычная встреча превращается в битву с боссом."},
+ {id:"mutations",name:"МУТАЦИИ",desc:"Враги получают случайные усиления."},
+ {id:"mirror",name:"ЗЕРКАЛЬНЫЙ МИР",desc:"Лево и право меняются местами."},
+ {id:"dark",name:"ТЁМНЫЙ РЕЖИМ",desc:"Видна только область вокруг игрока."},
+ {id:"maze",name:"КОМНАТЫ-ЛАБИРИНТЫ",desc:"Выходы меняют сторону."},
+ {id:"puzzles",name:"СЛУЧАЙНЫЕ ГОЛОВОЛОМКИ",desc:"Текст и порядок загадок меняются."},
+ {id:"gravity",name:"ГРАВИТАЦИЯ",desc:"Персонажа постоянно тянет вниз."},
+ {id:"reversebattle",name:"ОБРАТНОЕ УПРАВЛЕНИЕ В БОЮ",desc:"Направления души зеркальны."},
+ {id:"fast",name:"УСКОРЕННАЯ ИГРА",desc:"Враги и игрок двигаются быстрее."},
+ {id:"slow",name:"ЗАМЕДЛЕННАЯ ИГРА",desc:"Враги и игрок двигаются медленнее."},
+ {id:"tiny",name:"МАЛЕНЬКИЙ ИГРОК",desc:"Персонаж становится крошечным."},
+ {id:"giant",name:"БОЛЬШИЕ МОНСТРЫ",desc:"Монстры увеличиваются."},
+ {id:"chaos",name:"CHAOS",desc:"Комбинация случайных врагов, предметов и усилений."}
+];
+let modSettings=JSON.parse(localStorage.getItem("void_echo_mods")||"{}")||{};
+for(const m of MODS)modSettings[m.id]=!!modSettings[m.id];
+let menuPage="main",menuIndex=0,modScroll=0,allModsRunActive=false;
 let reverseStage=0;
-const reverseStages=["architect","gear","echo","thorn","bug","crystal","morok"];
-const reverseNames=["АРХИТЕКТОР ПУСТОТЫ","МЕХАНИЧЕСКИЙ СТРАЖ","ЭХО-РЫБА","РЖАВЫЙ ШИП","АРХИВНЫЙ ЖУК","КРИСТАЛЛ-РЫЦАРЬ","МОРОК"];
 function countdownText(){
  const end=new Date(2026,9,2,0,0,0).getTime();
  let sec=Math.max(0,Math.floor((end-Date.now())/1000));
  const d=Math.floor(sec/86400);sec%=86400;const h=Math.floor(sec/3600);sec%=3600;const m=Math.floor(sec/60);const ss=sec%60;
  return d+"д "+String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(ss).padStart(2,"0");
 }
+const reverseStages=["architect","gear","echo","thorn","bug","crystal","morok"];
+function modOn(id){return !!modSettings[id] || !!modSettings.chaos&&id!=="hardcore";}
+function allModsOn(){return MODS.every(m=>!!modSettings[m.id]);}
+function saveMods(){localStorage.setItem("void_echo_mods",JSON.stringify(modSettings));}
+function toggleMod(i){if(i<0||i>=MODS.length)return;const id=MODS[i].id;modSettings[id]=!modSettings[id];saveMods();}
+function activeModCount(){return MODS.filter(m=>modOn(m.id)).length;}
+function applyModStartStats(){
+ if(modOn("onehp")){maxhp=1;hp=1}else{maxhp=30;hp=30}
+ if(modOn("tiny")){player.r=5;player.s=modOn("fast")?5:modOn("slow")?1.5:3}else player.r=10;
+ if(modOn("fast"))player.s=5;if(modOn("slow"))player.s=1.5;
+}
 function startNewGame(){
- hp=maxhp=30;kills=spared=gold=0;genocide=false;ending="";bossStarted=false;
- room=0;zoneRoom=0;player={x:110,y:390,r:10,s:3};inventory=["Малое лечение","Старая записка"];
- flags={guide:false,items:0};qstate=Array.from({length:7},()=>({step:0,done:false}));
- randomEncounterMeter=0;randomEncounterCooldown=240;reverseStage=0;
- if(modReverseRush){state="world";setTimeout(()=>startReverseStage(),80);}
+ hp=maxhp=30;kills=spared=gold=0;genocide=false;ending="";bossStarted=false;room=0;zoneRoom=0;
+ player={x:110,y:390,r:10,s:3};inventory=["Малое лечение","Старая записка"];flags={guide:false,items:0};
+ qstate=Array.from({length:7},()=>({step:0,done:false}));randomEncounterMeter=0;randomEncounterCooldown=240;reverseStage=0;
+ puzzleState={};localStorage.removeItem("void_echo_puzzles");
+ allModsRunActive=allModsOn();applyModStartStats();
+ if(modOn("bossrush")||modOn("reverse")){state="world";setTimeout(()=>startReverseStage(modOn("reverse")),80);}
+ else if(modOn("bossrooms")){state="world";say("Режим модов активирован. Даже обычные комнаты теперь опасны.");}
  else {state="world";say("Ты просыпаешься в Пепельном дворе. Впереди семь локаций.");}
 }
-function startReverseStage(){
- if(!modReverseRush)return;
- const key=reverseStages[reverseStage];
- if(!key){state="world";say("Босс-реверс завершён. Теперь путь идёт от самого сильного к самому лёгкому.");return;}
- const isBoss=key==="architect";
- startBattle(key,isBoss);
- if(battle){battle.reverseRush=true;battle.reverseStage=reverseStage;battle.secret=isBoss;}
+function startReverseStage(reverse=true){
+ const list=reverse?reverseStages:["architect","gear","echo","thorn","bug","crystal","morok"];
+ if(reverseStage>=list.length){reverseStage=0;state="world";say("Мод боссов завершён.");return;}
+ const key=list[reverseStage];startBattle(key,key==="architect");
+ if(battle){battle.reverseRush=true;battle.reverseStage=reverseStage;battle.secret=key==="architect";}
 }
-function drawMainMenu(){
- ctx.fillStyle="#050509";ctx.fillRect(0,0,800,500);ctx.textAlign="center";
- ctx.fillStyle="#fff";ctx.font="bold 46px monospace";ctx.fillText("VOID ECHO",400,78);
- ctx.font="15px monospace";ctx.fillStyle="#888";ctx.fillText("оригинальная пиксельная RPG",400,106);
- if(menuPage==="main"){
-   const items=[hasCheckpoint()?"ПРОДОЛЖИТЬ":"ИГРАТЬ","МОДЫ","ИГРАТЬ МУЛЬТИПЛЕЕР"];
-   items.forEach((t,i)=>{ctx.fillStyle=i===menuIndex?"#fff":"#777";ctx.font="20px monospace";ctx.fillText((i===menuIndex?"> ":"  ")+t+(i===2?" *":""),400,180+i*55)});
-   ctx.font="12px monospace";ctx.fillStyle="#666";ctx.fillText("* сетевой мультиплеер требует отдельного сервера",400,350);
-   ctx.fillStyle="#9ff";ctx.font="16px monospace";ctx.fillText("ДО 2 ОКТЯБРЯ: "+countdownText(),400,395);
-   ctx.fillStyle="#aaa";ctx.font="12px monospace";ctx.fillText("↑↓ — выбор • Z / ENTER — подтвердить",400,435);
- }else{
-   ctx.font="24px monospace";ctx.fillStyle="#fff";ctx.fillText("МОДЫ",400,150);
-   const items=["РАНДОМНЫЕ МОНСТРЫ: "+(modRandomMonsters?"ВКЛ":"ВЫКЛ"),"РЕВЕРС: БОССЫ → ЛЁГКИЕ: "+(modReverseRush?"ВКЛ":"ВЫКЛ"),"НАЗАД"];
-   items.forEach((t,i)=>{ctx.fillStyle=i===menuIndex?"#fff":"#777";ctx.font="17px monospace";ctx.fillText((i===menuIndex?"> ":"  ")+t,400,225+i*55)});
-   ctx.fillStyle="#aaa";ctx.font="12px monospace";ctx.fillText("Рандомные монстры добавляют случайные бои при исследовании.",400,405);
-   ctx.fillText("Реверс запускает цепочку от Архитектора к Мороку.",400,425);
+function modEnemyList(base){
+ let list=[...base];
+ if(modOn("crazy")){const keys=Object.keys(enemyTypes).filter(k=>k!=="architect");while(list.length<3)list.push(keys[Math.floor(Math.random()*keys.length)]);list=list.sort(()=>Math.random()-.5);}
+ if(modOn("double")&&list.length<2)list.push(list[0]);
+ if(modOn("bossrooms")&&Math.random()<.18)list=["architect"];
+ if(modOn("chaos")&&Math.random()<.25)list=["architect",Object.keys(enemyTypes)[Math.floor(Math.random()*6)]];
+ return list;
+}
+const __startBattleMods=startBattle;
+startBattle=function(types,final=false){
+ let list=Array.isArray(types)?types:[types];
+ if(!final)list=modEnemyList(list);
+ __startBattleMods(list,final);
+ if(battle&&modOn("mutations")){
+   battle.enemies.forEach(e=>{e.max=Math.round(e.max*(1.15+Math.random()*.65));e.hp=e.max;e.modMutation=true});
  }
- ctx.textAlign="left";
-}
-const __titleOld=title;
-title=function(){drawMainMenu()};
-const __randomEncounterBase=randomEncounter;
-randomEncounter=function(){if(!modRandomMonsters)return;__randomEncounterBase();};
-
-/* Boss → easy reverse mode. It is a separate boss-rush sequence and does not alter the normal story. */
-const __attackBeforeMods=attack;
+ if(battle&&modOn("giant"))battle.enemies.forEach(e=>e.renderScale=1.65);
+};
+const __randomEncounterMods=randomEncounter;
+randomEncounter=function(){if(!modOn("random"))return;__randomEncounterMods();};
+const __healMods=heal;
+heal=function(){if(modOn("noheal")){say("Этот мод запрещает лечение.");return}__healMods();};
+const __attackMods=attack;
 attack=function(){
- const rr=!!(battle&&battle.reverseRush);
- const stage=rr?(battle.reverseStage??0):-1;
- __attackBeforeMods();
- if(rr && state==="ending"){
-   if(stage<reverseStages.length-1){
-     ending="";state="world";battle=null;reverseStage=stage+1;
-     setTimeout(()=>{if(modReverseRush)startReverseStage();},650);
-   }
+ if(!battle)return;
+ if(modOn("onlyspare")){say("В этом режиме можно только щадить врагов.");return;}
+ const stage=battle.reverseRush?battle.reverseStage:-1;
+ __attackMods();
+ if(battle&&modOn("hardcore")&&hp<=0)localStorage.removeItem(saveKey);
+ if(battle&&battle.reverseRush&&state==="ending"){
+   ending="";state="world";battle=null;reverseStage=stage+1;setTimeout(()=>startReverseStage(true),500);
  }
 };
-
-/* Main-menu keyboard and pointer controls use capture so the old title handler cannot start the game early. */
+const __spareMods=spare;
+spare=function(){if(modOn("nospare")){say("Пощада отключена этим модом.");return}__spareMods();};
+const __updateBattleMods=updateBattle;
+updateBattle=function(){
+ if(!battle){__updateBattleMods();return;}
+ if(modOn("reversebattle")&&battle.phase==="dodge"){
+   battle._reverseApplied=true;
+   battle.soul.x=800-battle.soul.x;
+ }
+ __updateBattleMods();
+ if(modOn("onehp")&&hp>1)hp=1;
+};
+const __worldDrawMods=world;
+world=function(){
+ __worldDrawMods();
+ if(modOn("tiny")){ctx.save();ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(player.x,player.y,5,0,Math.PI*2);ctx.fill();ctx.restore();}
+ if(modOn("dark")){
+   ctx.save();ctx.fillStyle="rgba(0,0,0,.86)";ctx.fillRect(0,0,800,500);ctx.globalCompositeOperation="destination-out";ctx.beginPath();ctx.arc(player.x,player.y,105,0,Math.PI*2);ctx.fill();ctx.restore();
+ }
+ if(room===6&&zoneRoom===2){ctx.fillStyle="#9ff";ctx.font="11px monospace";ctx.fillText("АКТИВНЫЕ МОДЫ: "+activeModCount()+"/"+MODS.length,540,470)}
+};
+const __drawMonsterMods=drawMonster;
+drawMonster=function(e,x,y,scale=1,selected=false){__drawMonsterMods(e,x,y,scale*(e.renderScale||1),selected);};
+const __solvePuzzleMods=solvePuzzle;
+solvePuzzle=function(){
+ if(modOn("puzzles")){const old=Math.random;Math.random=()=>old();}
+ __solvePuzzleMods();
+};
+const __updateWorldMods=update;
+update=function(){
+ const oldS=player.s;
+ if(modOn("fast"))player.s=5;else if(modOn("slow"))player.s=1.5;else player.s=3;
+ if(modOn("mirror")&&state==="world"){
+   const k=window.__keys||{};if(k.ArrowLeft){k.__mirrorRight=true;delete k.ArrowLeft}if(k.ArrowRight){k.__mirrorLeft=true;delete k.ArrowRight}
+   if(k.__mirrorRight){k.ArrowRight=true;delete k.__mirrorRight}if(k.__mirrorLeft){k.ArrowLeft=true;delete k.__mirrorLeft}
+ }
+ __updateWorldMods();
+ if(modOn("gravity")&&state==="world")player.y=Math.min(405,player.y+0.8);
+ if(modOn("onehp")&&state==="world")hp=1;
+};
+function drawModsMenu(){
+ ctx.fillStyle="#050509";ctx.fillRect(0,0,800,500);ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="28px monospace";ctx.fillText("МОДЫ",400,45);
+ ctx.font="11px monospace";ctx.fillStyle="#9ff";ctx.fillText("ВКЛЮЧЕНО: "+activeModCount()+" / "+MODS.length,400,65);
+ const visible=8;for(let j=0;j<visible;j++){const i=modScroll+j;if(i>=MODS.length)break;const m=MODS[i];const y=105+j*40;ctx.fillStyle=i===menuIndex?"#fff":"#777";ctx.font="14px monospace";ctx.fillText((i===menuIndex?"> ":"  ")+(modOn(m.id)?"[ON] ":"[  ] ")+m.name,400,y);if(i===menuIndex){ctx.fillStyle="#888";ctx.font="10px monospace";ctx.fillText(m.desc,400,y+15)}}
+ const back=MODS.length;ctx.fillStyle=menuIndex===back?"#fff":"#777";ctx.font="15px monospace";ctx.fillText((menuIndex===back?"> ":"  ")+"НАЗАД",400,440);
+ ctx.fillStyle="#666";ctx.font="11px monospace";ctx.fillText("↑↓ — выбор • Z/ENTER — включить • ←→/A/D — листать",400,475);ctx.textAlign="left";
+}
+function drawMainMenu(){
+ ctx.fillStyle="#050509";ctx.fillRect(0,0,800,500);ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="bold 46px monospace";ctx.fillText("VOID ECHO",400,78);ctx.font="15px monospace";ctx.fillStyle="#888";ctx.fillText("оригинальная пиксельная RPG",400,106);
+ if(menuPage==="main"){
+  const items=[hasCheckpoint()?"ПРОДОЛЖИТЬ":"ИГРАТЬ","МОДЫ","ИГРАТЬ МУЛЬТИПЛЕЕР"];
+  items.forEach((t,i)=>{ctx.fillStyle=i===menuIndex?"#fff":"#777";ctx.font="20px monospace";ctx.fillText((i===menuIndex?"> ":"  ")+t,400,180+i*55)});
+  ctx.fillStyle="#9ff";ctx.font="16px monospace";ctx.fillText("ДО 2 ОКТЯБРЯ: "+countdownText(),400,355);ctx.fillStyle="#aaa";ctx.font="11px monospace";ctx.fillText("↑↓ — выбор • Z / ENTER — подтвердить",400,430);
+ }else drawModsMenu();ctx.textAlign="left";
+}
+const __titleMods=title;title=function(){drawMainMenu()};
+/* Replace earlier menu handlers by one capture handler. */
 addEventListener("keydown",e=>{
  if(state!=="title")return;
- const k=e.key;
  if(menuPage==="main"){
-   if(k==="ArrowUp"){menuIndex=(menuIndex+2)%3;e.preventDefault();e.stopImmediatePropagation();}
-   else if(k==="ArrowDown"){menuIndex=(menuIndex+1)%3;e.preventDefault();e.stopImmediatePropagation();}
-   else if(k==="Enter"||k==="z"||k==="Z"){
-     e.preventDefault();e.stopImmediatePropagation();
-     if(menuIndex===0){if(hasCheckpoint()){loadGame();}else startNewGame();}
-     else if(menuIndex===1){menuPage="mods";menuIndex=0;}
-     else {say("МУЛЬТИПЛЕЕР\n\nСетевой режим пока не подключён. Эта версия работает как одиночная игра на GitHub Pages.\n\nДля настоящего мультиплеера понадобится сервер, который будет синхронизировать игроков.");}
-   }
+  if(e.key==="ArrowUp"){menuIndex=(menuIndex+2)%3;e.preventDefault();e.stopImmediatePropagation();}
+  else if(e.key==="ArrowDown"){menuIndex=(menuIndex+1)%3;e.preventDefault();e.stopImmediatePropagation();}
+  else if(e.key==="Enter"||e.key.toLowerCase()==="z"){
+   e.preventDefault();e.stopImmediatePropagation();
+   if(menuIndex===0){if(hasCheckpoint())loadGame();else startNewGame();}
+   else if(menuIndex===1){menuPage="mods";menuIndex=0;modScroll=0;}
+   else say("МУЛЬТИПЛЕЕР\n\nКнопка готова. Для настоящего онлайна понадобится бесплатный WebSocket/WebRTC-сервер.");
+  }
  }else{
-   if(k==="ArrowUp"){menuIndex=(menuIndex+2)%3;e.preventDefault();e.stopImmediatePropagation();}
-   else if(k==="ArrowDown"){menuIndex=(menuIndex+1)%3;e.preventDefault();e.stopImmediatePropagation();}
-   else if(k==="Escape"||k==="x"||k==="X"){menuPage="main";menuIndex=0;e.preventDefault();e.stopImmediatePropagation();}
-   else if(k==="Enter"||k==="z"||k==="Z"){
-     e.preventDefault();e.stopImmediatePropagation();
-     if(menuIndex===0)modRandomMonsters=!modRandomMonsters;
-     else if(menuIndex===1)modReverseRush=!modReverseRush;
-     else {menuPage="main";menuIndex=0;}
-   }
+  if(e.key==="ArrowUp"){menuIndex=(menuIndex+MODS.length)% (MODS.length+1);if(menuIndex<modScroll)modScroll=menuIndex;e.preventDefault();e.stopImmediatePropagation();}
+  else if(e.key==="ArrowDown"){menuIndex=(menuIndex+1)%(MODS.length+1);if(menuIndex>=modScroll+8)modScroll=menuIndex-7;e.preventDefault();e.stopImmediatePropagation();}
+  else if(e.key==="ArrowLeft"||e.key==="a"){modScroll=Math.max(0,modScroll-1);e.preventDefault();e.stopImmediatePropagation();}
+  else if(e.key==="ArrowRight"||e.key==="d"){modScroll=Math.min(Math.max(0,MODS.length-8),modScroll+1);e.preventDefault();e.stopImmediatePropagation();}
+  else if(e.key==="Escape"||e.key.toLowerCase()==="x"){menuPage="main";menuIndex=1;e.preventDefault();e.stopImmediatePropagation();}
+  else if(e.key==="Enter"||e.key.toLowerCase()==="z"){e.preventDefault();e.stopImmediatePropagation();if(menuIndex===MODS.length){menuPage="main";menuIndex=1}else toggleMod(menuIndex);}
  }
 },true);
-addEventListener("pointerdown",e=>{
- if(state!=="title")return;
- const r=c.getBoundingClientRect(),x=(e.clientX-r.left)*(800/r.width),y=(e.clientY-r.top)*(500/r.height);
- if(menuPage==="main"){
-   if(y>145&&y<235){menuIndex=0;if(hasCheckpoint())loadGame();else startNewGame();}
-   else if(y>=235&&y<305){menuPage="mods";menuIndex=0;}
-   else if(y>=305&&y<375){say("МУЛЬТИПЛЕЕР\n\nСетевой режим пока не подключён. Для настоящего онлайна понадобится сервер синхронизации.");}
- }else if(menuPage==="mods"){
-   if(y>190&&y<275){modRandomMonsters=!modRandomMonsters;}
-   else if(y>=275&&y<345){modReverseRush=!modReverseRush;}
-   else if(y>=345&&y<405){menuPage="main";menuIndex=0;}
- }
-},true);
+/* All-mod achievement. */
+const __endingMods=endingDraw;
+endingDraw=function(){
+ if(allModsRunActive&&allModsOn()){badge("Мастер всех модов");}
+ __endingMods();
+ if(badges.includes("Мастер всех модов")){ctx.fillStyle="#9ff";ctx.font="13px monospace";ctx.textAlign="center";ctx.fillText("🏆 МАСТЕР ВСЕХ МОДОВ",400,415);ctx.textAlign="left";}
+};
+/* Add the new badge to the badge list and award room-hunter explicitly. */
+const __badgesDraw=badgesDraw;
+badgesDraw=function(){__badgesDraw();if(badges.includes("Мастер всех модов")){ctx.fillStyle="#9ff";ctx.font="14px monospace";ctx.fillText("✓ Мастер всех модов",115,420)}};
+/* Room-hunter: visit all 21 rooms, including backtracking. */
+let visitedRooms=JSON.parse(localStorage.getItem("void_echo_visited_rooms")||"{}")||{};
+function markRoomVisited(){const key=room+":"+zoneRoom;if(!visitedRooms[key]){visitedRooms[key]=true;localStorage.setItem("void_echo_visited_rooms",JSON.stringify(visitedRooms));}if(Object.keys(visitedRooms).length>=21)badge("Охотник за комнатами");}
+const __roomTransitionMods=roomTransition;
+roomTransition=function(dir){__roomTransitionMods(dir);markRoomVisited();};
+markRoomVisited();
 
 </script>
 </body>
