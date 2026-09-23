@@ -298,7 +298,7 @@ function drawQuestMarkers(){if(state!=="world"||qstate[room].done)return;ctx.sav
 function questHit(){if(state!=="world")return false;let s=qstate[room],q=ZQUESTS[room];if(s.done)return false;let pts=[[300,150],[450,150],[600,150],[300,330],[450,330],[600,330]];let p=pts[s.step%pts.length];if(Math.hypot(player.x-p[0],player.y-p[1])<38){progressQuest(room);return true}return false}
 function shopDraw(){ctx.fillStyle="rgba(0,0,0,.94)";ctx.fillRect(100,70,600,360);ctx.strokeStyle="#fff";ctx.strokeRect(100,70,600,360);ctx.fillStyle="#fff";ctx.font="25px monospace";ctx.fillText("ЛАВКА ЭХА",130,115);ctx.font="16px monospace";shopItems.forEach((it,i)=>{ctx.fillStyle=i===shopIndex?"#fff":"#aaa";ctx.fillText((i===shopIndex?"> ":"  ")+it.n+" — "+it.p+" мон.",140,165+i*45)});ctx.fillStyle="#aaa";ctx.fillText("Z — купить • ↑↓ — выбор • X — выйти",140,380);ctx.fillText("Монеты: "+gold,520,115)}
 function closeShop(){shopOpen=false;shopIndex=0;window.__actionPressed=false;if(state==="shop")state="world";}
-function badgesDraw(){ctx.fillStyle="rgba(0,0,0,.95)";ctx.fillRect(80,55,640,390);ctx.strokeStyle="#fff";ctx.strokeRect(80,55,640,390);ctx.fillStyle="#fff";ctx.font="24px monospace";ctx.fillText("СЕКРЕТНЫЕ БЕЙДЖИ",110,95);ctx.font="14px monospace";let all=["Первое Эхо","Мастер зоны 1","Мастер зоны 2","Мастер зоны 3","Мастер зоны 4","Мастер зоны 5","Мастер зоны 6","Мастер зоны 7","Никого не убил","Секретный гость","Охотник за комнатами"];all.forEach((b,i)=>{ctx.fillStyle=badges.includes(b)?"#fff":"#555";ctx.fillText((badges.includes(b)?"✓ ":"? ")+b,115,130+i*25)});ctx.fillStyle="#aaa";ctx.fillText("X / Esc — закрыть",540,420)}
+function badgesDraw(){ctx.fillStyle="rgba(0,0,0,.95)";ctx.fillRect(80,55,640,390);ctx.strokeStyle="#fff";ctx.strokeRect(80,55,640,390);ctx.fillStyle="#fff";ctx.font="24px monospace";ctx.fillText("СЕКРЕТНЫЕ БЕЙДЖИ",110,95);ctx.font="14px monospace";let all=["Первое Эхо","Мастер зоны 1","Мастер зоны 2","Мастер зоны 3","Мастер зоны 4","Мастер зоны 5","Мастер зоны 6","Мастер зоны 7","Никого не убил","Секретный гость","Охотник за комнатами",...Object.values(RUN_BADGES),"Мастер всех модов",...(typeof EVENT_BADGES!=="undefined"&&eventUnlocked()?EVENT_BADGES:[])];all.forEach((b,i)=>{ctx.fillStyle=badges.includes(b)?"#fff":"#555";ctx.fillText((badges.includes(b)?"✓ ":"? ")+b,115,130+i*25)});ctx.fillStyle="#aaa";ctx.fillText("X / Esc — закрыть",540,420)}
 function secretRoom(){if(room===6&&routeFlags.secretDoor){room=6;player.x=650;player.y=100;state="world";badge("Охотник за комнатами");say("Ты вошёл в комнату, которой не было на карте.")} }
 function tryRareEncounter(){if(state!=="world"||rareCooldown>0)return;if(Math.random()<0.0015){rareCooldown=900;badge("Секретный гость");startBattle(["echo","morok"]);say("Редкая встреча! Существо пришло из другого Эха.")}}
 function startSecretBoss(){if(!qstate.every(x=>x.done)||kills!==0){say("Дверь запечатана. Семь Эхо должны быть восстановлены, а путь пощады сохранён.");return}badge("Никого не убил");badge("Последний свидетель");startBattle("architect",true);battle.secret=true}
@@ -1211,9 +1211,9 @@ function drawModsMenu(){
 function drawMainMenu(){
  ctx.fillStyle="#050509";ctx.fillRect(0,0,800,500);ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="bold 46px monospace";ctx.fillText("VOID ECHO",400,78);ctx.font="15px monospace";ctx.fillStyle="#888";ctx.fillText("оригинальная пиксельная RPG",400,106);
  if(menuPage==="main"){
-  const items=[hasCheckpoint()?"ПРОДОЛЖИТЬ":"ИГРАТЬ","МОДЫ","ИГРАТЬ МУЛЬТИПЛЕЕР"];
+  const items=[hasCheckpoint()?"ПРОДОЛЖИТЬ":"ИГРАТЬ","МОДЫ","ИГРАТЬ МУЛЬТИПЛЕЕР",eventUnlocked()?"🎃 ИВЕНТ 2 ОКТЯБРЯ":"🔒 ИВЕНТ ЗАПЕЧАТАН"];
   items.forEach((t,i)=>{ctx.fillStyle=i===menuIndex?"#fff":"#777";ctx.font="20px monospace";ctx.fillText((i===menuIndex?"> ":"  ")+t,400,180+i*55)});
-  ctx.fillStyle="#9ff";ctx.font="16px monospace";ctx.fillText("ДО 2 ОКТЯБРЯ: "+countdownText(),400,355);ctx.fillStyle="#aaa";ctx.font="11px monospace";ctx.fillText("↑↓ — выбор • Z / ENTER — подтвердить",400,430);
+  ctx.fillStyle="#9ff";ctx.font="16px monospace";ctx.fillText(eventUnlocked()?"ИВЕНТ АКТИВЕН • 2 ОКТЯБРЯ":"ДО 2 ОКТЯБРЯ: "+countdownText(),400,355);ctx.fillStyle="#aaa";ctx.font="11px monospace";ctx.fillText("↑↓ — выбор • Z / ENTER — подтвердить",400,430);
  }else drawModsMenu();ctx.textAlign="left";
 }
 const __titleMods=title;title=function(){drawMainMenu()};
@@ -1221,13 +1221,14 @@ const __titleMods=title;title=function(){drawMainMenu()};
 addEventListener("keydown",e=>{
  if(state!=="title")return;
  if(menuPage==="main"){
-  if(e.key==="ArrowUp"){menuIndex=(menuIndex+2)%3;e.preventDefault();e.stopImmediatePropagation();}
-  else if(e.key==="ArrowDown"){menuIndex=(menuIndex+1)%3;e.preventDefault();e.stopImmediatePropagation();}
+  if(e.key==="ArrowUp"){menuIndex=(menuIndex+3)%4;e.preventDefault();e.stopImmediatePropagation();}
+  else if(e.key==="ArrowDown"){menuIndex=(menuIndex+1)%4;e.preventDefault();e.stopImmediatePropagation();}
   else if(e.key==="Enter"||e.key.toLowerCase()==="z"){
    e.preventDefault();e.stopImmediatePropagation();
    if(menuIndex===0){if(hasCheckpoint())loadGame();else startNewGame();}
    else if(menuIndex===1){menuPage="mods";menuIndex=0;modScroll=0;}
-   else say("МУЛЬТИПЛЕЕР\n\nКнопка готова. Для настоящего онлайна понадобится бесплатный WebSocket/WebRTC-сервер.");
+   else if(menuIndex===2)say("МУЛЬТИПЛЕЕР\n\nКнопка готова. Для настоящего онлайна понадобится бесплатный WebSocket/WebRTC-сервер.");
+   else if(menuIndex===3){if(eventUnlocked()){eventMenuOpen=true;state="eventmenu";menuIndex=0;}else say("Ивент откроется автоматически 2 октября, когда таймер закончится.");}
   }
  }else{
   if(e.key==="ArrowUp"){menuIndex=(menuIndex+MODS.length)% (MODS.length+1);if(menuIndex<modScroll)modScroll=menuIndex;e.preventDefault();e.stopImmediatePropagation();}
@@ -1249,11 +1250,186 @@ endingDraw=function(){
 const __badgesDraw=badgesDraw;
 badgesDraw=function(){__badgesDraw();if(badges.includes("Мастер всех модов")){ctx.fillStyle="#9ff";ctx.font="14px monospace";ctx.fillText("✓ Мастер всех модов",115,420)}};
 /* Room-hunter: visit all 21 rooms, including backtracking. */
+// Run achievements R1-R10. They are permanent meta-progress and do NOT reset with a new run.
+const RUN_BADGES={
+  1:"R1 — Первое возвращение",
+  2:"R2 — Второй след",
+  3:"R3 — Три Эха",
+  4:"R4 — Четвёртый круг",
+  5:"R5 — Память мира",
+  6:"R6 — Шесть возвращений",
+  7:"R7 — Седьмое Эхо",
+  8:"R8 — Мир узнаёт тебя",
+  9:"R9 — Почти легенда",
+  10:"R10 — Десять возвращений"
+};
+function awardRunBadge(){
+  const n=Math.min(10,Math.max(0,Number(completedRuns)||0));
+  if(RUN_BADGES[n]) badge(RUN_BADGES[n]);
+}
+
 let visitedRooms=JSON.parse(localStorage.getItem("void_echo_visited_rooms")||"{}")||{};
 function markRoomVisited(){const key=room+":"+zoneRoom;if(!visitedRooms[key]){visitedRooms[key]=true;localStorage.setItem("void_echo_visited_rooms",JSON.stringify(visitedRooms));}if(Object.keys(visitedRooms).length>=21)badge("Охотник за комнатами");}
+
+// Award the matching R1-R10 achievement after the current ending has been counted.
+const __endingRunBadges=endingDraw;
+endingDraw=function(){
+  __endingRunBadges();
+  awardRunBadge();
+};
+
 const __roomTransitionMods=roomTransition;
 roomTransition=function(dir){__roomTransitionMods(dir);markRoomVisited();};
 markRoomVisited();
+
+
+/* ===== OCTOBER 2 EVENT: THE ECHO FESTIVAL ===== */
+const EVENT_END_TS=new Date(2026,9,2,0,0,0).getTime();
+let eventActive=localStorage.getItem("void_echo_event_active")==="1";
+let eventCurrency=Number(localStorage.getItem("void_echo_event_currency")||0);
+let eventOwned=JSON.parse(localStorage.getItem("void_echo_event_owned")||"[]")||[];
+let eventBadgesAwarded=JSON.parse(localStorage.getItem("void_echo_event_badges")||"[]")||[];
+let eventModsAdded=localStorage.getItem("void_echo_event_mods_added")==="1";
+let eventMenuOpen=false,eventMenuIndex=0,eventWave=0,eventKills=0,eventSpares=0;
+const EVENT_BADGES=[
+ "Ивент: Первое Эхо","Ивент: Милость","Ивент: Охотник","Ивент: 10 побед",
+ "Ивент: 10 пощад","Ивент: 25 побед","Ивент: 25 пощад","Ивент: 100 валюты",
+ "Ивент: Классический","Ивент: Все предметы","Ивент: Секрет фестиваля","Ивент: Последний огонь"
+];
+const EVENT_MODS=[
+ {id:"event_double",name:"ФЕСТИВАЛЬНЫЙ ДУБЛИКАТ",desc:"За победу и пощаду выдаётся вдвое больше валюты."},
+ {id:"event_mercy",name:"МИЛОСТЬ ЭХА",desc:"Пощада приносит дополнительную ивент-валюту."},
+ {id:"event_frenzy",name:"ФРЕНЗИ",desc:"Ивентовые враги атакуют быстрее."},
+ {id:"event_glass",name:"СТЕКЛЯННАЯ ДУША",desc:"В ивент-режиме максимум HP равен 15."},
+ {id:"event_giant",name:"ГИГАНТСКИЙ ФЕСТИВАЛЬ",desc:"Ивентовые монстры становятся крупнее."},
+ {id:"event_shadow",name:"ТЕНЬ 2 ОКТЯБРЯ",desc:"В ивенте затемняется арена вокруг души."},
+ {id:"event_gold",name:"ЗОЛОТОЙ ЭХО",desc:"Каждая третья победа даёт дополнительную валюту."},
+ {id:"event_pacifist",name:"ПРАЗДНИК МИЛОСЕРДИЯ",desc:"За пощаду начисляется большой бонус."},
+ {id:"event_wave",name:"ВОЛНА ЭХА",desc:"После победы следующая волна становится сложнее."},
+ {id:"event_random",name:"СЛУЧАЙНЫЙ ПРАЗДНИК",desc:"Каждая волна выбирает случайных врагов."},
+ {id:"event_boss",name:"АРХИТЕКТОР НА ПРАЗДНИКЕ",desc:"Иногда появляется усиленный Архитектор."},
+ {id:"event_chaos",name:"ЭХО-ХАОС",desc:"Смешивает несколько фестивальных эффектов."}
+];
+const EVENT_ITEMS=[
+ {id:"classic_sword",name:"Классический меч",price:250,desc:"Атака наносит 30 HP вместо 10. Навсегда."},
+ {id:"echo_blade",name:"Клинок Эха",price:450,desc:"Атака наносит 45 HP. Навсегда."},
+ {id:"mercy_bell",name:"Колокол милости",price:350,desc:"Пощада приносит +3 ивент-валюты. Навсегда."},
+ {id:"void_cloak",name:"Плащ Пустоты",price:600,desc:"Постоянный чёрный визуальный скин."},
+ {id:"crystal_skin",name:"Кристальный скин",price:500,desc:"Постоянный кристальный скин игрока."},
+ {id:"shadow_skin",name:"Скин Морока",price:500,desc:"Постоянный теневой скин игрока."},
+ {id:"architect_mask",name:"Маска Архитектора",price:900,desc:"Постоянный скин-маска."},
+ {id:"golden_soul",name:"Золотая душа",price:750,desc:"Постоянный золотой эффект души."},
+ {id:"festival_lantern",name:"Фонарь фестиваля",price:300,desc:"Навсегда добавляет фонарь в инвентарь."},
+ {id:"memory_shard",name:"Осколок памяти",price:1100,desc:"Постоянный секретный предмет."}
+];
+function eventUnlocked(){
+ if(!eventActive && Date.now()>=EVENT_END_TS){eventActive=true;localStorage.setItem("void_echo_event_active","1");activateEventContent();}
+ return eventActive;
+}
+function activateEventContent(){
+ if(eventModsAdded)return;
+ for(const m of EVENT_MODS){if(!MODS.some(x=>x.id===m.id))MODS.push(m);modSettings[m.id]=!!modSettings[m.id];}
+ eventModsAdded=true;localStorage.setItem("void_echo_event_mods_added","1");saveMods();
+}
+function saveEvent(){localStorage.setItem("void_echo_event_currency",String(eventCurrency));localStorage.setItem("void_echo_event_owned",JSON.stringify(eventOwned));localStorage.setItem("void_echo_event_badges",JSON.stringify(eventBadgesAwarded));}
+function eventBadge(n){if(!eventBadgesAwarded.includes(n)){eventBadgesAwarded.push(n);saveEvent();badge(n);return true}return false}
+function awardEventProgress(){
+ if(eventKills+eventSpares>0)eventBadge(EVENT_BADGES[0]);
+ if(eventSpares>=1)eventBadge(EVENT_BADGES[1]);
+ if(eventKills>=1)eventBadge(EVENT_BADGES[2]);
+ if(eventKills>=10)eventBadge(EVENT_BADGES[3]);
+ if(eventSpares>=10)eventBadge(EVENT_BADGES[4]);
+ if(eventKills>=25)eventBadge(EVENT_BADGES[5]);
+ if(eventSpares>=25)eventBadge(EVENT_BADGES[6]);
+ if(eventCurrency>=100)eventBadge(EVENT_BADGES[7]);
+ if(eventOwned.includes("classic_sword"))eventBadge(EVENT_BADGES[8]);
+ if(EVENT_ITEMS.every(x=>eventOwned.includes(x.id)))eventBadge(EVENT_BADGES[9]);
+ if(eventOwned.includes("memory_shard"))eventBadge(EVENT_BADGES[10]);
+ if(eventWave>=12)eventBadge(EVENT_BADGES[11]);
+}
+function eventGain(amount){let mult=modOn("event_double")?2:1;eventCurrency+=amount*mult;if(modOn("event_gold")&&eventKills%3===0&&eventKills>0)eventCurrency+=5;awardEventProgress();saveEvent();}
+function eventOwn(id){return eventOwned.includes(id)}
+function buyEventItem(i){const it=EVENT_ITEMS[i];if(!it)return;if(eventOwn(it.id)){say("У тебя уже есть: "+it.name);return}if(eventCurrency<it.price){say("Не хватает ивент-валюты. Нужно "+it.price+".");return}eventCurrency-=it.price;eventOwned.push(it.id);saveEvent();awardEventProgress();say("Куплено навсегда: "+it.name+"!");}
+function drawEventMenu(){
+ ctx.fillStyle="#07050a";ctx.fillRect(0,0,800,500);ctx.textAlign="center";ctx.fillStyle="#ffd36b";ctx.font="bold 27px monospace";ctx.fillText("🎃 ЭХО-ФЕСТИВАЛЬ • 2 ОКТЯБРЯ",400,38);
+ ctx.fillStyle="#9ff";ctx.font="15px monospace";ctx.fillText("ИВЕНТ-ВАЛЮТА: "+eventCurrency,400,65);
+ const modeLine=eventMenuIndex===0?"▶ ИВЕНТ-РЕЖИМ — волны врагов, убийства и пощада дают валюту":"  ИВЕНТ-РЕЖИМ — волны врагов, убийства и пощада дают валюту";
+ ctx.fillStyle=eventMenuIndex===0?"#fff":"#777";ctx.fillText(modeLine,400,100);
+ ctx.fillStyle="#ffd36b";ctx.fillText(eventMenuIndex===1?"▶ МАГАЗИН НАВСЕГДА":"  МАГАЗИН НАВСЕГДА",400,128);
+ if(eventMenuIndex>=2){const base=eventMenuIndex-2;for(let j=0;j<6;j++){const i=base+j;if(i>=EVENT_ITEMS.length)break;const it=EVENT_ITEMS[i];const y=170+j*42;ctx.fillStyle=i===base?"#fff":"#777";ctx.textAlign="left";ctx.fillText((i===base?"> ":"  ")+(eventOwn(it.id)?"✓ ":"")+it.name+" — "+it.price,105,y);ctx.fillStyle="#666";ctx.font="9px monospace";ctx.fillText(it.desc,125,y+13);ctx.font="14px monospace";}ctx.textAlign="center";}
+ ctx.fillStyle="#888";ctx.font="11px monospace";ctx.fillText("↑↓ — выбор • Z/Enter — выбрать • X/Esc — назад",400,475);ctx.textAlign="left";
+}
+function startEventMode(){
+ if(!eventUnlocked())return;
+ eventMode=true;eventWave=0;eventKills=0;eventSpares=0;state="world";hp=eventOwned.includes("golden_soul")?40:30;maxhp=modOn("event_glass")?15:hp;
+ const seen=localStorage.getItem("void_echo_event_story_seen")==="1";
+ if(!seen){localStorage.setItem("void_echo_event_story_seen","1");say(["2 октября. Таймер обрывается — и семь Эхо начинают звучать одновременно.","Неизвестный голос: Праздник уже начался.","Неизвестный голос: Но это не праздник. Кто-то использует Эхо, чтобы открыть старую дверь.","Неизвестный голос: Пройди двенадцать волн. Найди источник сигнала. И не верь маске Архитектора.","СЕКРЕТНАЯ ЛИНИЯ: «ЭХО-ФЕСТИВАЛЬ»"],"world");return;}
+ eventNextWave();
+}
+function eventNextWave(){
+ if(!eventMode)return;
+ eventWave++;
+ if(eventWave>12){eventMode=false;state="eventmenu";eventBadge(EVENT_BADGES[11]);if(eventKills>=6&&eventSpares>=6){eventBadge(EVENT_BADGES[10]);}say("Фестиваль завершён. Ты пережил 12 волн! Где-то за кулисами осталась дверь без имени.");return;}
+ let pool=[["morok"],["crystal","morok"],["bug","crystal"],["thorn","bug"],["echo","thorn"],["gear","echo"],["crystal","thorn","echo"]][Math.min(6,Math.floor((eventWave-1)/2))];
+ if(modOn("event_random")){const keys=Object.keys(enemyTypes).filter(k=>k!=="architect");pool=[keys[Math.floor(Math.random()*keys.length)]];if(Math.random()<.45)pool.push(keys[Math.floor(Math.random()*keys.length)]);}
+ if(modOn("event_boss")&&eventWave%6===0)pool=["architect"];
+ if(modOn("event_wave")&&eventWave>1)pool=pool.concat(pool.slice(0,1));
+ startBattle(pool,false);if(battle){battle.event=true;battle.eventWave=eventWave;if(modOn("event_boss")&&pool[0]==="architect"){battle.enemies[0].max=170;battle.enemies[0].hp=170;}}}
+let eventMode=false;
+const __eventStart=eventNextWave;
+// Reward event currency when an event enemy is defeated or spared, then continue the wave chain.
+const __eventAttack=attack;
+attack=function(){
+ const ev=!!(battle&&battle.event);if(!ev){__eventAttack();return;}
+ const before=battle.enemies.length;__eventAttack();
+ if(ev&&before!== (battle?battle.enemies.length:0)){eventKills++;eventGain(10);awardEventProgress();}
+ if(ev&&!battle&&state!=="ending"&&state!=="gameover"){setTimeout(eventNextWave,250);}
+};
+const __eventSpare=spare;
+spare=function(){
+ const ev=!!(battle&&battle.event);if(!ev){__eventSpare();return;}
+ const before=battle.enemies.length;__eventSpare();
+ if(ev&&before!== (battle?battle.enemies.length:0)){eventSpares++;eventGain(modOn("event_pacifist")?12:7+(eventOwned.includes("mercy_bell")?3:0));awardEventProgress();}
+ if(ev&&!battle&&state!=="ending"&&state!=="gameover"){setTimeout(eventNextWave,250);}
+};
+// Permanent event equipment modifies the normal attack damage and visual skin.
+const __eventAttackPower=attack;
+attack=function(){
+ if(battle&&!battle.event&&battle.phase==="menu"){
+   const classic=eventOwn("classic_sword"),blade=eventOwn("echo_blade");
+   if(classic||blade){
+     const e=battle.enemies[battle.target];
+     if(e){const old=e.hp;const dmg=blade?45:30;e.hp-=dmg;if(e.hp<=0){gold+=e.gold||0;battle.enemies.splice(battle.target,1);kills++;if(battle.enemies.length===0){if(battle.final){ending=genocide?"ГЕНОЦИД":"ИСТИННАЯ";state="ending";battle=null;return}genocide=true;addItem("Осколок Эха");battle=null;say("Ты победил всех врагов. Их Эхо осталось в тебе.");return}battle.target=Math.min(battle.target,battle.enemies.length-1);enemyTurn();return}enemyTurn();return;}
+   }
+ }
+ __eventAttackPower();
+};
+// Event menu and automatic unlock. This runs after the countdown reaches zero.
+const __eventLoopUpdate=update;
+update=function(){eventUnlocked();__eventLoopUpdate();if(state==="eventmenu"){}if(eventMode&&state==="world"&&!battle&&eventWave===0)eventNextWave();};
+const __eventDraw=draw;
+draw=function(){__eventDraw();if(state==="eventmenu")drawEventMenu();if(eventMode&&state==="world"){ctx.fillStyle="#ffd36b";ctx.font="13px monospace";ctx.fillText("🎃 ФЕСТИВАЛЬ • ВОЛНА "+eventWave+"/12 • ВАЛЮТА "+eventCurrency,50,470);} };
+// Persistent ownership is restored at every new run.
+const __eventStartNewGame=startNewGame;
+startNewGame=function(){__eventStartNewGame();for(const it of EVENT_ITEMS){if(eventOwn(it.id)&&!inventory.includes(it.name))inventory.push(it.name);} };
+const __eventApplyNG=applyNGPlus;
+applyNGPlus=function(){__eventApplyNG();for(const it of EVENT_ITEMS){if(eventOwn(it.id)&&!inventory.includes(it.name))inventory.push(it.name);} };
+// Event menu controls are intentionally separate from the normal mods menu.
+addEventListener("keydown",e=>{
+ if(state!=="eventmenu")return;
+ if(e.key==="ArrowUp"){eventMenuIndex=Math.max(0,eventMenuIndex-1);e.preventDefault();e.stopImmediatePropagation();}
+ else if(e.key==="ArrowDown"){eventMenuIndex=Math.min(EVENT_ITEMS.length+1,eventMenuIndex+1);e.preventDefault();e.stopImmediatePropagation();}
+ else if(e.key==="x"||e.key==="Escape"){state="title";menuPage="main";menuIndex=3;eventMenuOpen=false;e.preventDefault();e.stopImmediatePropagation();}
+ else if(e.key==="z"||e.key==="Enter"){
+   e.preventDefault();e.stopImmediatePropagation();
+   if(eventMenuIndex===0){startEventMode();return;}
+   if(eventMenuIndex===1){eventMenuIndex=2;return;}
+   const i=eventMenuIndex-2;if(i>=0&&i<EVENT_ITEMS.length)buyEventItem(i);
+ }
+},true);
+// Show event information in the badges screen after unlock.
+const __eventBadgesDraw=badgesDraw;
+badgesDraw=function(){__eventBadgesDraw();if(eventUnlocked()){ctx.fillStyle="#ffd36b";ctx.font="12px monospace";ctx.fillText("🎃 12 БЕЙДЖЕЙ ИВЕНТА ДОСТУПНЫ",430,405);}};
 
 </script>
 </body>
