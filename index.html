@@ -213,6 +213,7 @@ addEventListener("keydown",e=>{
 window.__keys[e.key]=true;
 if(state==="title"&&(e.key==="z"||e.key==="Enter")){state="world";say("Ты просыпаешься в Пепельном дворе. Впереди семь локаций.");}
 else if(state==="dialog"&&(e.key==="z"||e.key==="Enter"))next();
+else if(state==="dialog"&&(e.key==="x"||e.key==="Escape")){e.preventDefault();dialog=[];state="world";}
 else if(state==="world"&&(e.key==="i"||e.key==="I"))state="inventory";
 else if(state==="inventory"&&(e.key==="i"||e.key==="I"||e.key==="x"||e.key==="Escape"))state="world";
 else if(state==="inventory"&&(e.key==="z"||e.key==="Enter")){if(inventory.includes("Малое лечение")&&hp<maxhp){removeItem("Малое лечение");hp=Math.min(maxhp,hp+10);say("Ты использовал Малое лечение. +10 HP.")}else say("Этот предмет сейчас использовать нельзя.")}
