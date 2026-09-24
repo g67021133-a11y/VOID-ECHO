@@ -90,6 +90,25 @@ if(room<6){ctx.fillStyle="#777";ctx.fillRect(735,205,30,80)}
 ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,Math.PI*2);ctx.fill();
 ctx.font="18px monospace";ctx.fillText(r.name,55,35);ctx.font="14px monospace";ctx.fillStyle="#bbb";ctx.fillText("HP "+hp+"/"+maxhp+"   Убийств: "+kills+"   Пощад: "+spared+"   Монет: "+gold,55,475);
 if(genocide){ctx.fillStyle="#d66";ctx.fillText("МАРШРУТ: ГЕНОЦИД",575,35)}
+if(echoCollapseActive){
+  const t=Math.min(1,(performance.now()-echoCollapseStart)/echoCollapseDuration);
+  // The world visually breaks apart without persisting the changes.
+  ctx.save();
+  ctx.globalAlpha=.12+.38*t;
+  ctx.fillStyle="#000";ctx.fillRect(35,55,730,365);
+  ctx.globalAlpha=.35+.45*t;
+  ctx.strokeStyle="#dff";ctx.lineWidth=1.5;
+  const cracks=[[90,80,180,150,130,220],[260,60,300,170,240,250],[470,75,420,180,520,270],[650,90,590,210,700,330],[150,300,250,250,330,390],[430,330,520,270,620,405]];
+  cracks.forEach(c=>{ctx.beginPath();ctx.moveTo(c[0],c[1]);ctx.lineTo(c[2],c[3]);ctx.lineTo(c[4],c[5]);ctx.stroke()});
+  ctx.globalAlpha=.2+.6*t;
+  for(let i=0;i<12;i++){
+    const px=55+((i*97+Math.floor(t*120))%680), py=70+((i*53+Math.floor(t*180))%330);
+    ctx.fillRect(px,py,8+(i%4)*4,4+(i%3)*3);
+  }
+  ctx.fillStyle="#fff";ctx.globalAlpha=.65+.25*t;ctx.font="bold 13px monospace";ctx.textAlign="center";
+  ctx.fillText(t<1?"ЭХО РАЗРУШАЕТ МИР...":"МИР РАСПАЛСЯ — ЭХО ИСЧЕЗЛО",400,395);
+  ctx.restore();ctx.textAlign="left";
+}
 }
 function dialogDraw(){world();ctx.fillStyle="rgba(0,0,0,.9)";ctx.fillRect(45,330,710,125);ctx.strokeStyle="#fff";ctx.strokeRect(45,330,710,125);ctx.fillStyle="#fff";ctx.font="18px monospace";wrap(dialog[di],70,365,660);ctx.font="13px monospace";ctx.fillStyle="#aaa";ctx.fillText("Z / ENTER — продолжить",560,435)}
 function inventoryDraw(){ctx.fillStyle="#050509";ctx.fillRect(0,0,800,500);ctx.fillStyle="#fff";ctx.font="28px monospace";ctx.fillText("ИНВЕНТАРЬ",55,60);ctx.font="16px monospace";inventory.forEach((it,i)=>{ctx.fillStyle=i===0?"#fff":"#aaa";ctx.fillText((i===0?"> ":"  ")+it,70,120+i*38)});ctx.fillStyle="#aaa";ctx.font="13px monospace";ctx.fillText("Z — использовать первый предмет • I/X/Esc — выйти",55,430);ctx.fillText("Монеты: "+gold,600,60)}
@@ -130,7 +149,7 @@ for(const b of battle.bullets){ctx.fillStyle=b.color||"#fff";if(b.shape==="ring"
 ctx.fillStyle="#fff";ctx.font="16px monospace";ctx.fillText("HP "+hp+"/"+maxhp,70,430);ctx.fillText("Врагов осталось: "+battle.enemies.length,70,455);
 }
 
-function endingDraw(){ctx.fillStyle="#030306";ctx.fillRect(0,0,800,500);ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="30px monospace";let t={"МИРНАЯ":"КОНЦОВКА: ТИХИЙ СВЕТ","ОБЫЧНАЯ":"КОНЦОВКА: ВОЗВРАЩЕНИЕ","ГЕНОЦИД":"КОНЦОВКА: ПУСТОТА","ИСТИННАЯ":"КОНЦОВКА: ИСТИННОЕ ЭХО"}[ending]||"КОНЦОВКА";ctx.fillText(t,400,150);ctx.font="17px monospace";ctx.fillStyle="#bbb";let d={"МИРНАЯ":"Ты пощадил врагов. Мир получил шанс восстановиться.","ОБЫЧНАЯ":"Ты прошёл путь до конца и нашёл дорогу домой.","ГЕНОЦИД":"Ты уничтожил всё на своём пути. Архитектор Пустоты проснулся.","ИСТИННАЯ":"Ты сохранил Эхо и остановил Пустоту без разрушения мира."}[ending];wrap(d,170,215,460,27);ctx.fillStyle="#aaa";ctx.fillText("Z / ENTER — начать заново",400,350);ctx.textAlign="left"}
+function endingDraw(){ctx.fillStyle="#030306";ctx.fillRect(0,0,800,500);ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="30px monospace";let t={"МИРНАЯ":"КОНЦОВКА: ТИХИЙ СВЕТ","ОБЫЧНАЯ":"КОНЦОВКА: ВОЗВРАЩЕНИЕ","ГЕНОЦИД":"КОНЦОВКА: ПУСТОТА","ИСТИННАЯ":"КОНЦОВКА: ИСТИННОЕ ЭХО","ПАМЯТЬ":"КОНЦОВКА: ПОСЛЕДНЕЕ ВОСПОМИНАНИЕ"}[ending]||"КОНЦОВКА";ctx.fillText(t,400,150);ctx.font="17px monospace";ctx.fillStyle="#bbb";let d={"МИРНАЯ":"Ты пощадил врагов. Мир получил шанс восстановиться.","ОБЫЧНАЯ":"Ты прошёл путь до конца и нашёл дорогу домой.","ГЕНОЦИД":"Ты уничтожил всё на своём пути. Архитектор Пустоты проснулся.","ИСТИННАЯ":"Ты сохранил Эхо и остановил Пустоту без разрушения мира.","ПАМЯТЬ":"Ты собрал семь воспоминаний. Осколок показал правду: Архитектор всё это время пытался запечатать Пустоту. Дверь закрылась, но теперь ты знаешь, что находится по ту сторону."}[ending];wrap(d,170,215,460,27);ctx.fillStyle="#aaa";ctx.fillText("Z / ENTER — начать заново",400,350);ctx.textAlign="left"}
 
 function startBattle(types,final=false){
 let list=Array.isArray(types)?types:[types];
@@ -450,7 +469,61 @@ addEventListener("keydown",e=>{
 
 /* extra secret badge checks */
 const oldCompleteQuest=completeQuest;
-completeQuest=function(r){oldCompleteQuest(r);if(qstate.every(x=>x.done))badge("Семь Эхо");};
+let sevenEchoAnimation=false, sevenEchoAnimationStart=0, sevenEchoAnimationDuration=7600, sevenEchoAnimationPlayed=false, sevenEchoAudio=null;
+const SEVEN_ECHO_STYLE=[
+ {c:"#ff5b5b",s:"♥"},{c:"#ff9b42",s:"◆"},{c:"#ffe45c",s:"★"},{c:"#62e66b",s:"✦"},
+ {c:"#55d9ff",s:"≈"},{c:"#7188ff",s:"◈"},{c:"#d36cff",s:"✧"}
+];
+function playSevenEchoMusic(){
+ try{
+  const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+  const ac=new AC();sevenEchoAudio=ac;const now=ac.currentTime;
+  const notes=[261.63,293.66,329.63,392,440,523.25,659.25,783.99];
+  notes.forEach((f,i)=>{const o=ac.createOscillator(),g=ac.createGain();o.type=i%2?"triangle":"sine";o.frequency.value=f;o.frequency.exponentialRampToValueAtTime(f*1.35,now+2.8);g.gain.setValueAtTime(0,now+i*.42);g.gain.linearRampToValueAtTime(.055,now+i*.42+.08);g.gain.exponentialRampToValueAtTime(.001,now+i*.42+1.7);o.connect(g);g.connect(ac.destination);o.start(now+i*.42);o.stop(now+i*.42+1.8);});
+  const hit=ac.createOscillator(),hg=ac.createGain();hit.type="sine";hit.frequency.setValueAtTime(880,now+5.95);hit.frequency.exponentialRampToValueAtTime(110,now+6.65);hg.gain.setValueAtTime(.001,now+5.9);hg.gain.exponentialRampToValueAtTime(.16,now+6.03);hg.gain.exponentialRampToValueAtTime(.001,now+7.2);hit.connect(hg);hg.connect(ac.destination);hit.start(now+5.9);hit.stop(now+7.25);
+ }catch(e){}
+}
+function startSevenEchoAnimation(){
+ if(sevenEchoAnimation)return;
+ sevenEchoAnimation=true; sevenEchoAnimationStart=performance.now();
+ sevenEchoAnimationPlayed=false; state="echo7"; playSevenEchoMusic();
+}
+function drawEchoCracks(t){
+ if(t<.64)return; const p=(t-.64)/.36;ctx.save();ctx.globalAlpha=Math.min(1,p*1.7);ctx.strokeStyle="#dff";ctx.lineWidth=1.5;
+ const cracks=[[70,80,150,130,110,205,180,250],[730,70,650,125,690,210,610,270],[120,430,205,365,175,315,250,270],[680,440,600,370,625,310,545,260],[400,35,385,105,420,160,400,225]];
+ cracks.forEach(a=>{ctx.beginPath();ctx.moveTo(a[0],a[1]);for(let i=2;i<a.length;i+=2)ctx.lineTo(a[i],a[i+1]);ctx.stroke();});
+ ctx.restore();
+}
+function drawSevenEchoAnimation(){
+ if(!sevenEchoAnimation)return;
+ const t=Math.min(1,(performance.now()-sevenEchoAnimationStart)/sevenEchoAnimationDuration), now=performance.now();
+ ctx.save();ctx.fillStyle="rgba(0,0,12,"+(0.34+0.5*t)+")";ctx.fillRect(0,0,800,500);
+ const cx=400,cy=245;ctx.globalCompositeOperation="lighter";
+ for(let i=0;i<7;i++){
+   const a=i*Math.PI*2/7-now/1050;const radius=185*(1-Math.min(1,t/.72)*.84);
+   const x=cx+Math.cos(a)*radius,y=cy+Math.sin(a)*radius;const pulse=9+Math.sin(now/105+i)*3;const st=SEVEN_ECHO_STYLE[i];
+   ctx.shadowBlur=22;ctx.shadowColor=st.c;ctx.fillStyle=st.c;ctx.beginPath();ctx.arc(x,y,pulse,0,Math.PI*2);ctx.fill();
+   ctx.shadowBlur=0;ctx.font="bold 15px monospace";ctx.textAlign="center";ctx.fillText(st.s,x,y+5);
+   ctx.globalAlpha=.42;ctx.beginPath();ctx.arc(x,y,pulse*2.6,0,Math.PI*2);ctx.strokeStyle=st.c;ctx.lineWidth=2;ctx.stroke();ctx.globalAlpha=1;
+ }
+ const core=12+Math.sin(now/75)*3+54*Math.min(1,t);
+ ctx.shadowBlur=35;ctx.shadowColor="#bff";ctx.fillStyle="rgba(220,250,255,"+(0.1+0.5*t)+")";ctx.beginPath();ctx.arc(cx,cy,core,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+ ctx.strokeStyle="#fff";ctx.lineWidth=3;ctx.beginPath();ctx.arc(cx,cy,core*.68,0,Math.PI*2);ctx.stroke();
+ drawEchoCracks(t);
+ if(t>.48){ctx.globalAlpha=Math.min(1,(t-.48)/.2);ctx.fillStyle="#fff";ctx.font="bold 27px monospace";ctx.fillText("СЕМЬ ЭХО",cx,cy+110);ctx.font="13px monospace";ctx.fillText("ВСПОМНИЛИ ТЕБЯ",cx,cy+134);}
+ if(t>.67){ctx.globalAlpha=Math.min(1,(t-.67)/.2);ctx.fillStyle="#dff";ctx.font="11px monospace";ctx.fillText("МИР ВПЕРВЫЕ ТРЕСКАЕТСЯ",cx,cy+164);}
+ if(t>.87){ctx.globalAlpha=(t-.87)/.13;ctx.fillStyle="#fff";ctx.fillRect(0,0,800,500);}
+ ctx.restore();
+}
+const oldCompleteQuestWithEchoAnim=completeQuest;
+completeQuest=function(r){
+ const wasAll=qstate.every(x=>x.done);
+ oldCompleteQuestWithEchoAnim(r);
+ if(qstate.every(x=>x.done)){
+   badge("Семь Эхо");
+   if(!wasAll && !sevenEchoAnimationPlayed){sevenEchoAnimationPlayed=true;startSevenEchoAnimation();}
+ }
+};
 const oldSaveGame=saveGame;
 saveGame=function(){
  oldSaveGame();
@@ -698,6 +771,7 @@ const randomPools={
   5:[["gear"],["crystal","gear"],["morok","gear"],["gear","echo"]]
 };
 function randomEncounter(){
+  if(echoCollapseActive)return;
   if(state!=="world"||room===0||room===6||randomEncounterCooldown>0)return;
   const pool=randomPools[room]; if(!pool)return;
   const group=pool[Math.floor(Math.random()*pool.length)];
@@ -837,7 +911,7 @@ update=function(){
  /* final secret door interaction */
  if(room===6&&zoneRoom===2&&Math.hypot(player.x-650,player.y-100)<75&&window.__actionPressed){
    window.__actionPressed=false;
-   if(qstate.every(x=>x.done)&&kills===0){startSecretBoss();}else{say("Дверь запечатана.\n\nСемь Эхо должны быть восстановлены, а путь пощады сохранён.");}
+   if(qstate.every(x=>x.done)){startSecretBoss();}else{say("Дверь запечатана.\n\nСначала собери все семь Эхо.");}
    return;
  }
  /* puzzle interaction */
@@ -855,11 +929,11 @@ world=function(){
  drawSavePoint();
 if(room===6&&zoneRoom===2){
  ctx.save();
- ctx.fillStyle=(qstate.every(x=>x.done)&&kills===0)?"#9ff":"#555";
+ ctx.fillStyle=qstate.every(x=>x.done)?"#9ff":"#555";
  ctx.fillRect(625,70,50,70);
  ctx.strokeStyle="#fff";ctx.strokeRect(625,70,50,70);
  ctx.fillStyle="#fff";ctx.font="10px monospace";ctx.textAlign="center";
- ctx.fillText("ДВЕРЬ",650,92);ctx.fillText("Z",650,108);
+ ctx.fillText(qstate.every(x=>x.done)?"ОТКРЫТО":"ДВЕРЬ",650,92);ctx.fillText("Z",650,108);
  ctx.restore();
 }
 drawPuzzle();ctx.restore();
@@ -990,8 +1064,8 @@ next=function(){
 const __startSecretBossFix=startSecretBoss;
 startSecretBoss=function(){
   if(battle&&battle.final)return;
-  if(!qstate.every(x=>x.done)||kills!==0){
-    say("Дверь запечатана.\n\nСемь Эхо должны быть восстановлены, а путь пощады сохранён.");
+  if(!qstate.every(x=>x.done)){
+    say("Дверь запечатана.\n\nСначала собери все семь Эхо.");
     return;
   }
   badge("Никого не убил");
@@ -1023,15 +1097,15 @@ addEventListener("keydown",e=>{
    directly so other world interactions cannot consume the same key press. */
 function secretDoorNearby(){
   return state==="world" && room===6 && zoneRoom===2 &&
-    Math.hypot(player.x-650,player.y-100)<115;
+    player.x>560 && player.x<735 && player.y>55 && player.y<180;
 }
 function useSecretDoor(){
   if(!secretDoorNearby())return false;
   window.__actionPressed=false;
-  if(qstate.every(x=>x.done) && kills===0){
+  if(qstate.every(x=>x.done)){
     startSecretBoss();
   }else{
-    say("Дверь запечатана.\n\nСемь Эхо должны быть восстановлены, а путь пощады сохранён.");
+    say("Дверь запечатана.\n\nСначала собери все семь Эхо.");
   }
   return true;
 }
@@ -1431,6 +1505,256 @@ addEventListener("keydown",e=>{
 const __eventBadgesDraw=badgesDraw;
 badgesDraw=function(){__eventBadgesDraw();if(eventUnlocked()){ctx.fillStyle="#ffd36b";ctx.font="12px monospace";ctx.fillText("🎃 12 БЕЙДЖЕЙ ИВЕНТА ДОСТУПНЫ",430,405);}};
 
+
+/* ===== MEMORY SHARD: 7 MEMORIES + SECRET FESTIVAL ENDING ===== */
+const MEMORY_DATA=[
+ {zone:0,title:"ПЕПЕЛЬНОЕ ВОСПОМИНАНИЕ",text:"Я помню первый звук. Семь Эхо ещё были единым голосом."},
+ {zone:1,title:"СТЕКЛЯННОЕ ВОСПОМИНАНИЕ",text:"Я помню свет под кристаллами. Он показывал путь, которого не существовало."},
+ {zone:2,title:"АРХИВНОЕ ВОСПОМИНАНИЕ",text:"Я помню имя, которое архив пытался стереть: АРХИТЕКТОР."},
+ {zone:3,title:"РЖАВОЕ ВОСПОМИНАНИЕ",text:"Я помню сад. Его механизмы работали даже после того, как мир замолчал."},
+ {zone:4,title:"ВОДНОЕ ВОСПОМИНАНИЕ",text:"Я помню голос из глубины: «Не открывай дверь без имени»."},
+ {zone:5,title:"МЕХАНИЧЕСКОЕ ВОСПОМИНАНИЕ",text:"Я помню, что Архитектор не создал Пустоту. Он пытался её запечатать."},
+ {zone:6,title:"ПОСЛЕДНЕЕ ВОСПОМИНАНИЕ",text:"Я помню правду: дверь открывается не силой. Ей нужен тот, кто помнит."}
+];
+let memorySeen=JSON.parse(localStorage.getItem("void_echo_memory_seen")||"[]")||[];
+let memoryMenu=false,memoryIndex=0;
+function saveMemory(){localStorage.setItem("void_echo_memory_seen",JSON.stringify(memorySeen));}
+function memoryHas(){return eventOwn("memory_shard");}
+function discoverMemory(z){
+ if(!memoryHas()||z<0||z>=MEMORY_DATA.length||memorySeen.includes(z))return false;
+ memorySeen.push(z);saveMemory();
+ if(memorySeen.length===7){badge("Семь воспоминаний");saveEvent();}
+ say([MEMORY_DATA[z].title,MEMORY_DATA[z].text,"Осколок памяти становится теплее..."],"world");
+ return true;
+}
+function allMemories(){return memorySeen.length>=7;}
+function openMemoryMenu(){
+ if(!memoryHas()){say("Осколок памяти не найден.");return;}
+ memoryMenu=true;memoryIndex=0;state="memorymenu";
+}
+function drawMemoryMenu(){
+ ctx.fillStyle="#050509";ctx.fillRect(0,0,800,500);ctx.textAlign="center";
+ ctx.fillStyle="#9ff";ctx.font="bold 26px monospace";ctx.fillText("ОСКОЛОК ПАМЯТИ",400,45);
+ ctx.fillStyle="#777";ctx.font="13px monospace";ctx.fillText("Открыто: "+memorySeen.length+" / 7",400,70);
+ for(let i=0;i<MEMORY_DATA.length;i++){
+   const y=110+i*48,seen=memorySeen.includes(i);
+   ctx.textAlign="left";ctx.fillStyle=i===memoryIndex?"#fff":"#666";
+   ctx.fillText((i===memoryIndex?"> ":"  ")+(seen?"✓ ":"□ ")+MEMORY_DATA[i].title,100,y);
+   if(i===memoryIndex){ctx.fillStyle=seen?"#aaa":"#444";ctx.font="10px monospace";ctx.fillText(seen?MEMORY_DATA[i].text:"Воспоминание ещё не найдено.",125,y+16);ctx.font="14px monospace";}
+ }
+ ctx.textAlign="center";ctx.fillStyle="#888";ctx.font="11px monospace";ctx.fillText("↑↓ — выбор • Z — открыть • X/Esc — назад",400,475);ctx.textAlign="left";
+}
+function tryMemoryEnding(){
+ if(!memoryHas()||!allMemories()||!eventActive||eventWave<12)return false;
+ if(localStorage.getItem("void_echo_memory_ending_seen")==="1")return false;
+ localStorage.setItem("void_echo_memory_ending_seen","1");
+ state="ending";ending="ПАМЯТЬ";eventMode=false;
+ badge("Истинная память");
+ return true;
+}
+/* Discover one memory whenever the player enters a new zone while carrying the shard. */
+const __memoryWorld=world;
+world=function(){__memoryWorld();if(memoryHas()&&state==="world"&&room>=0&&room<7&&!memorySeen.includes(room)){ctx.fillStyle="#9ff";ctx.font="12px monospace";ctx.fillText("✦ Осколок памяти чувствует Эхо",470,455);}};
+const __memoryUpdate=update;
+update=function(){
+ __memoryUpdate();
+ if(state==="world"&&memoryHas()&&!battle&&!memorySeen.includes(room))discoverMemory(room);
+ if(state==="eventmenu"&&eventMode===false&&allMemories()&&eventWave>=12)tryMemoryEnding();
+};
+const __memoryDraw=draw;
+draw=function(){__memoryDraw();if(state==="memorymenu")drawMemoryMenu();};
+addEventListener("keydown",e=>{
+ if(state!=="memorymenu")return;
+ if(e.key==="ArrowUp"){memoryIndex=Math.max(0,memoryIndex-1);e.preventDefault();e.stopImmediatePropagation();}
+ else if(e.key==="ArrowDown"){memoryIndex=Math.min(6,memoryIndex+1);e.preventDefault();e.stopImmediatePropagation();}
+ else if(e.key==="x"||e.key==="Escape"){memoryMenu=false;state="world";e.preventDefault();e.stopImmediatePropagation();}
+ else if(e.key==="z"||e.key==="Enter"){
+   e.preventDefault();e.stopImmediatePropagation();
+   if(memorySeen.includes(memoryIndex))say([MEMORY_DATA[memoryIndex].title,MEMORY_DATA[memoryIndex].text],"memorymenu");
+ }
+},true);
+/* M opens the memory archive whenever the shard is owned. */
+addEventListener("keydown",e=>{
+ if((e.key==="m"||e.key==="M")&&state==="world"&&memoryHas()){e.preventDefault();e.stopImmediatePropagation();openMemoryMenu();}
+},true);
+/* Give the shard its secret ending immediately after the 12th event wave. */
+const __memoryEventNext=eventNextWave;
+eventNextWave=function(){
+ __memoryEventNext();
+ if(!eventMode&&allMemories()&&memoryHas())tryMemoryEnding();
+};
+
+
+
+/* ===== POST-ENDING: CONTINUE / RESET + ONE-TIME WORLD SHAPER ===== */
+let postEndMode=false, postEndIndex=0, worldShaperUsed=false, worldShaperOpen=false, worldShaperIndex=0;
+let echoCollapseActive=false, echoCollapseStart=0, echoCollapseDuration=22000;
+let postEndChanged={};
+let worldShaperSelected=new Set();
+const SHAPER_MONSTERS=["morok","crystal","bug","thorn","echo","gear","architect"];
+const SHAPER_CHANGES=[
+ {id:"dark",name:"Погрузить мир во тьму",desc:"Затемняет мир до конца продолжения."},
+ {id:"giant",name:"Увеличить всех монстров",desc:"Все монстры в следующем бою станут крупнее."},
+ {id:"tiny",name:"Уменьшить душу",desc:"Душа становится очень маленькой."},
+ {id:"chaos",name:"Включить Эхо-хаос",desc:"Встречи получают случайные изменения."},
+ {id:"peace",name:"Убрать случайные встречи",desc:"Случайные бои больше не появляются."},
+ {id:"night",name:"Сделать мир ночным",desc:"Комнаты получают ночной эффект."}
+];
+function allEchoesCollected(){return typeof qstate!=="undefined"&&qstate.length===7&&qstate.every(x=>x.done);}
+function openPostEnding(){postEndMode=true;postEndIndex=0;state="postending";}
+function drawPostEnding(){
+ ctx.fillStyle="#030306";ctx.fillRect(0,0,800,500);ctx.textAlign="center";
+ ctx.fillStyle="#bff";ctx.font="bold 27px monospace";ctx.fillText("ЭХО ПОСЛЕ КОНЦОВКИ",400,75);
+ ctx.fillStyle="#aaa";ctx.font="13px monospace";ctx.fillText("Что сделать дальше?",400,105);
+ const opts=["ПРОДОЛЖИТЬ","СБРОСИТЬ ПРОХОЖДЕНИЕ"];
+ opts.forEach((x,i)=>{ctx.fillStyle=i===postEndIndex?"#fff":"#555";ctx.font=i===postEndIndex?"bold 20px monospace":"18px monospace";ctx.fillText((i===postEndIndex?"> ":"  ")+x,400,175+i*55)});
+ ctx.fillStyle=allEchoesCollected()?"#9ff":"#777";ctx.font="12px monospace";ctx.fillText(allEchoesCollected()?"✓ Все семь Эхо собраны — после продолжения доступен редактор мира.":"Собери все семь Эхо, чтобы открыть редактор мира.",400,300);
+ ctx.fillStyle="#666";ctx.fillText("↑↓ — выбор • Z / Enter — подтвердить",400,430);ctx.textAlign="left";
+}
+function worldShaperOptions(){
+ return [...SHAPER_MONSTERS.map(k=>({kind:"monster",id:k,name:"Призвать: "+enemyTypes[k].name,desc:"Добавить этого монстра в особый бой."})),...SHAPER_CHANGES.map(x=>({kind:"change",...x}))];
+}
+function openWorldShaper(){
+ if(worldShaperUsed){say("Сила Эха уже использована в этом продолжении.");return;}
+ worldShaperOpen=true;worldShaperIndex=0;worldShaperSelected=new Set();state="worldshaper";
+}
+function drawWorldShaper(){
+ ctx.fillStyle="#020207";ctx.fillRect(0,0,800,500);ctx.textAlign="center";
+ ctx.fillStyle="#dff";ctx.font="bold 23px monospace";ctx.fillText("РЕДАКТОР МИРА",400,34);
+ ctx.fillStyle="#aaa";ctx.font="11px monospace";ctx.fillText("Выбери НЕСКОЛЬКО изменений, затем нажми ENTER.",400,54);
+ ctx.fillText("Всё выбранное применится одним использованием силы Эха.",400,70);
+ const all=worldShaperOptions(), top=Math.max(0,Math.min(worldShaperIndex-6,all.length-13));
+ all.slice(top,top+13).forEach((x,j)=>{const i=top+j,y=93+j*25,selected=worldShaperSelected.has(i);ctx.fillStyle=i===worldShaperIndex?"#fff":selected?"#9ff":"#666";ctx.font=i===worldShaperIndex?"bold 13px monospace":"12px monospace";ctx.fillText((selected?"[✓] ":"[ ] ")+x.name,400,y);});
+ const x=all[worldShaperIndex];if(x){ctx.fillStyle="#888";ctx.font="10px monospace";ctx.fillText(x.desc,400,435);}
+ ctx.fillStyle="#aaa";ctx.font="10px monospace";ctx.fillText("↑↓ навигация • Z выбор • ENTER применить • X отмена",400,458);ctx.textAlign="left";
+}
+function useWorldShaper(){
+ if(worldShaperUsed){say("Сила Эха уже использована в этом продолжении. Мир больше нельзя менять.");return;}
+ const all=worldShaperOptions();const picked=[...worldShaperSelected].map(i=>all[i]).filter(Boolean);
+ if(!picked.length){say("Сначала выбери хотя бы одно изменение.");return;}
+ worldShaperUsed=true;worldShaperOpen=false;
+ const monsters=picked.filter(x=>x.kind==="monster").map(x=>x.id);
+ const changes=picked.filter(x=>x.kind==="change");postEndChanged={};
+ for(const x of changes){postEndChanged[x.id]=true;if(x.id==="tiny")player.r=5;}
+ // Using the seven Echoes tears the world apart: random encounters stop
+ // immediately and ordinary monster encounters disappear from the world.
+ echoCollapseActive=true;echoCollapseStart=performance.now();randomEncounterMeter=0;randomEncounterCooldown=999999999;
+ badge("Редактор реальности");
+ if(monsters.length){
+   state="world";startBattle(monsters,false);
+   if(battle){battle.worldShaper=true;battle.worldShaperChanges=changes.map(x=>x.id);if(postEndChanged.giant){battle.enemies.forEach(e=>{e.max=Math.round(e.max*1.5);e.hp=e.max;e.worldShaperGiant=true;});}}
+   say("Ты использовал силу всех семи Эхо. Монстры покидают мир, случайные встречи исчезают, а сама карта начинает разрушаться.");return;
+ }
+ state="world";say("Сила всех семи Эхо активирована. Все монстры исчезают, случайные встречи прекращаются, а карта начинает постепенно разваливаться.");
+}
+
+function continueAfterEnding(){
+ postEndMode=false;worldShaperUsed=false;worldShaperOpen=false;worldShaperSelected=new Set();postEndChanged={};echoCollapseActive=false;echoCollapseStart=0;randomEncounterCooldown=240;randomEncounterMeter=0;state="world";battle=null;ending="";
+ if(allEchoesCollected())say(["Ты решил продолжить путь.","Все семь Эхо собраны.","Теперь редактор мира может применить несколько изменений одновременно — но только один раз."]);
+ else say("Ты решил продолжить путь. Мир остался таким, каким ты его оставил.");
+}
+function resetAfterEnding(){postEndMode=false;worldShaperOpen=false;worldShaperUsed=false;worldShaperSelected=new Set();postEndChanged={};startNewGame();}
+/* Add the one-use reality door to every world after a completed ending. */
+const __postWorld=world;
+world=function(){__postWorld();
+ if(postEndMode===false&&state==="world"&&allEchoesCollected()&&!worldShaperUsed){ctx.save();ctx.strokeStyle="#bff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(400,125,25+Math.sin(performance.now()/250)*3,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#dff";ctx.font="10px monospace";ctx.textAlign="center";ctx.fillText("ЭХО",400,129);ctx.fillText("Z — открыть редактор",400,160);ctx.restore();}
+ if(state==="world"&&postEndChanged.night){ctx.fillStyle="rgba(0,0,35,.38)";ctx.fillRect(0,0,800,500);}
+ if(state==="world"&&postEndChanged.dark){ctx.fillStyle="rgba(0,0,0,.30)";ctx.fillRect(0,0,800,500);}
+};
+const __postUpdate=update;
+update=function(){
+  if(sevenEchoAnimation){
+    if(performance.now()-sevenEchoAnimationStart>=sevenEchoAnimationDuration){
+      sevenEchoAnimation=false;
+      state="world";
+      say(["Семь Эхо собрались в один голос.","Теперь мир помнит тебя."]);
+    }
+    return;
+  }
+  __postUpdate();
+  if(state==="world"&&allEchoesCollected()&&!worldShaperUsed&&window.__actionPressed&&Math.hypot(player.x-400,player.y-125)<55){window.__actionPressed=false;openWorldShaper();}
+  if(state==="world"&&postEndChanged.chaos&&Math.random()<0.002){ctx.save();ctx.globalAlpha=.18;ctx.fillRect(0,0,800,500);ctx.restore();}
+  if(echoCollapseActive&&state==="world"&&performance.now()-echoCollapseStart>=echoCollapseDuration){
+    echoCollapseActive=false;
+    postEndChanged={collapsed:true};
+    randomEncounterMeter=0;randomEncounterCooldown=999999999;
+  }
+};
+const __postDraw=draw;
+draw=function(){__postDraw();if(state==="postending")drawPostEnding();else if(state==="worldshaper")drawWorldShaper();};
+/* Ending screen now asks instead of immediately restarting. */
+const __postEndingDraw=endingDraw;
+endingDraw=function(){__postEndingDraw();if(state==="ending"){ctx.fillStyle="rgba(0,0,0,.82)";ctx.fillRect(120,365,560,90);ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="17px monospace";ctx.fillText("Z / ENTER — продолжить",400,400);ctx.fillText("R — сбросить прохождение",400,430);ctx.textAlign="left";}};
+addEventListener("keydown",e=>{
+ if(state==="ending"){
+   if(e.key==="z"||e.key==="Z"||e.key==="Enter"){e.preventDefault();e.stopImmediatePropagation();openPostEnding();return;}
+   if(e.key==="r"||e.key==="R"){e.preventDefault();e.stopImmediatePropagation();resetAfterEnding();return;}
+ }
+ if(state==="postending"){
+   if(e.key==="ArrowUp"){postEndIndex=Math.max(0,postEndIndex-1);e.preventDefault();e.stopImmediatePropagation();}
+   else if(e.key==="ArrowDown"){postEndIndex=Math.min(1,postEndIndex+1);e.preventDefault();e.stopImmediatePropagation();}
+   else if(e.key==="z"||e.key==="Z"||e.key==="Enter"){e.preventDefault();e.stopImmediatePropagation();if(postEndIndex===0)continueAfterEnding();else resetAfterEnding();}
+ }
+ if(state==="worldshaper"){
+   const count=SHAPER_MONSTERS.length+SHAPER_CHANGES.length;
+   if(e.key==="ArrowUp"){worldShaperIndex=Math.max(0,worldShaperIndex-1);e.preventDefault();e.stopImmediatePropagation();}
+   else if(e.key==="ArrowDown"){worldShaperIndex=Math.min(count-1,worldShaperIndex+1);e.preventDefault();e.stopImmediatePropagation();}
+   else if(e.key==="z"||e.key==="Z"){if(worldShaperSelected.has(worldShaperIndex))worldShaperSelected.delete(worldShaperIndex);else worldShaperSelected.add(worldShaperIndex);e.preventDefault();e.stopImmediatePropagation();}
+   else if(e.key==="Enter"){e.preventDefault();e.stopImmediatePropagation();useWorldShaper();}
+   else if(e.key==="x"||e.key==="X"||e.key==="Escape"){state="world";worldShaperOpen=false;worldShaperSelected=new Set();e.preventDefault();e.stopImmediatePropagation();}
+ }
+},true);
+/* The world shaper is deliberately session-only: nothing here is written to localStorage. */
+
+
+const __sevenEchoDrawHook=draw;
+draw=function(){__sevenEchoDrawHook();if(sevenEchoAnimation)drawSevenEchoAnimation();};
+
+/* ===== FINAL SECRET DOOR ROBUST FIX =====
+   One authoritative interaction path for the last-room door.
+   It runs before the older update wrappers, so no puzzle/shop/old door
+   handler can consume the same action press first. */
+let __secretDoorBusy=false;
+function finalSecretDoorNear(){
+  if(state!=="world" || room!==6 || zoneRoom!==2) return false;
+  return Math.hypot(player.x-650,player.y-100)<95;
+}
+function finalUseSecretDoor(){
+  if(!finalSecretDoorNear() || __secretDoorBusy) return false;
+  __secretDoorBusy=true;
+  window.__actionPressed=false;
+  if(qstate.every(x=>x.done)){
+    startSecretBoss();
+  }else{
+    say("Дверь запечатана.\n\nСначала собери все семь Эхо.");
+  }
+  setTimeout(()=>{__secretDoorBusy=false},350);
+  return true;
+}
+/* Highest-priority keyboard handler. */
+addEventListener("keydown",e=>{
+  if((e.key==="z"||e.key==="Z"||e.key==="Enter") && finalSecretDoorNear()){
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    finalUseSecretDoor();
+  }
+},true);
+/* Final update wrapper also supports the mobile Z button/action flag. */
+const __finalDoorUpdate=update;
+update=function(){
+  if(finalSecretDoorNear() && window.__actionPressed){
+    finalUseSecretDoor();
+    return;
+  }
+  __finalDoorUpdate();
+};
+/* Mobile Z must generate the same action signal as keyboard Z. */
+document.querySelectorAll('#mobile button[data-k="z"]').forEach(btn=>{
+  btn.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    if(state==="world") window.__actionPressed=true;
+  },true);
+});
 </script>
 </body>
 </html>
